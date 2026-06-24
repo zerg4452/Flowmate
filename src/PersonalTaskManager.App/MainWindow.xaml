@@ -319,7 +319,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <DockPanel Margin="0,0,0,8">
-                                    <Button DockPanel.Dock="Right" Content="닫기" Width="76" Command="{Binding CloseTaskDetailCommand}" />
+                                    <Button DockPanel.Dock="Right" Content="닫기" Width="76" Click="CloseTaskDetail_Click" />
                                     <TextBlock Text="{Binding SelectedTask.Title}" FontSize="22" FontWeight="Bold" Foreground="#0F172A" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </DockPanel>
                                 <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="8" Padding="12,8" HorizontalAlignment="Left" Margin="0,0,0,16">
@@ -351,18 +351,24 @@
                                         CornerRadius="8"
                                         Padding="14"
                                         MinHeight="120">
-                                    <TextBlock Text="{Binding SelectedTask.Body}" TextWrapping="Wrap" FontSize="14" VerticalAlignment="Top" />
+                                    <RichTextBox x:Name="DetailBodyViewer"
+                                                 IsReadOnly="True"
+                                                 IsDocumentEnabled="True"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 FontSize="14"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 MinHeight="92" />
                                 </Border>
                                 <!-- 수정 모드 -->
                                 <StackPanel Visibility="{Binding IsBodyEditMode, Converter={StaticResource BoolToVis}}">
-                                    <TextBox Text="{Binding EditingTaskBody, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource MultiLineInput}"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             MinHeight="150"
-                                             VerticalScrollBarVisibility="Auto" />
+                                    <Button Content="이미지 삽입" Width="100" HorizontalAlignment="Left" Margin="0,0,0,6" Click="InsertDetailBodyImage_Click" />
+                                    <RichTextBox x:Name="DetailBodyEditor"
+                                                 MinHeight="150"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 TextChanged="DetailBodyEditor_TextChanged" />
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                        <Button Content="본문 저장" Width="100" Style="{StaticResource PrimaryButton}" Command="{Binding SaveTaskBodyCommand}" />
+                                        <Button Content="본문 저장" Width="100" Style="{StaticResource PrimaryButton}" Click="SaveTaskBody_Click" />
                                         <Button Content="취소" Width="80" Margin="8,4,0,4" Command="{Binding CancelEditBodyCommand}" />
                                     </StackPanel>
                                 </StackPanel>
@@ -588,8 +594,9 @@
                                 <TextBlock Text="테스크명" Style="{StaticResource FieldLabel}" />
                                 <TextBox Text="{Binding NewTaskTitle, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Text="내용" Style="{StaticResource FieldLabel}" />
-                                <TextBox Text="{Binding NewTaskBody, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource MultiLineInput}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" />
-                                <Button Content="테스크 추가" Width="110" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Command="{Binding AddTaskCommand}" />
+                                <Button Content="이미지 삽입" Width="100" HorizontalAlignment="Left" Margin="0,0,0,6" Click="InsertNewTaskBodyImage_Click" />
+                                <RichTextBox x:Name="NewTaskBodyEditor" MinHeight="100" VerticalScrollBarVisibility="Auto" TextChanged="NewTaskBodyEditor_TextChanged" />
+                                <Button Content="테스크 추가" Width="110" Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="AddTask_Click" />
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>

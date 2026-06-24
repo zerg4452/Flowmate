@@ -1,6 +1,12 @@
+using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using PersonalTaskManager.Core.Models;
 using PersonalTaskManager.Core.Services;
 using PersonalTaskManager.App.ViewModels;
@@ -11,6 +17,9 @@ namespace PersonalTaskManager.App;
 
 public partial class MainWindow : Window
 {
+    private const int MaxInsertedImagePixelWidth = 1200;
+    private const double MaxInsertedImageDisplayWidth = 480;
+
     private readonly MainViewModel viewModel;
     private Point? dragStartPoint;
 
@@ -19,7 +28,192 @@ public partial class MainWindow : Window
         InitializeComponent();
         viewModel = new MainViewModel();
         DataContext = viewModel;
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
         RestoreWindowState();
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(MainViewModel.SelectedTask):
+                LoadBodyDocument(DetailBodyViewer, viewModel.SelectedTask?.BodyDocument);
+                break;
+            case nameof(MainViewModel.IsBodyEditMode):
+                if (viewModel.IsBodyEditMode)
+                {
+                    LoadBodyDocument(DetailBodyEditor, viewModel.EditingTaskBodyDocument);
+                }
+                else
+                {
+                    LoadBodyDocument(DetailBodyViewer, viewModel.SelectedTask?.BodyDocument);
+                }
+
+                break;
+        }
+    }
+
+    private static void LoadBodyDocument(RichTextBox box, byte[]? data)
+    {
+        box.Document = new FlowDocument();
+        if (data is not { Length: > 0 })
+        {
+            return;
+        }
+
+        using var stream = new MemoryStream(data);
+        var range = new TextRange(box.Document.ContentStart, box.Document.ContentEnd);
+        range.Load(stream, DataFormats.XamlPackage);
+    }
+
+    private void SyncDetailBodyDocument()
+    {
+        if (!viewModel.IsBodyEditMode)
+        {
+            return;
+        }
+
+        var range = new TextRange(DetailBodyEditor.Document.ContentStart, DetailBodyEditor.Document.ContentEnd);
+        viewModel.EditingTaskBody = range.Text.TrimEnd('\r', '\n');
+
+        using var stream = new MemoryStream();
+        range.Save(stream, DataFormats.XamlPackage);
+        viewModel.EditingTaskBodyDocument = stream.ToArray();
+    }
+
+    private void DetailBodyEditor_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var range = new TextRange(DetailBodyEditor.Document.ContentStart, DetailBodyEditor.Document.ContentEnd);
+        viewModel.EditingTaskBody = range.Text.TrimEnd('\r', '\n');
+    }
+
+    private void SaveTaskBody_Click(object sender, RoutedEventArgs e)
+    {
+        SyncDetailBodyDocument();
+        if (viewModel.SaveTaskBodyCommand.CanExecute(null))
+        {
+            viewModel.SaveTaskBodyCommand.Execute(null);
+        }
+    }
+
+    private void CloseTaskDetail_Click(object sender, RoutedEventArgs e)
+    {
+        SyncDetailBodyDocument();
+        if (viewModel.CloseTaskDetailCommand.CanExecute(null))
+        {
+            viewModel.CloseTaskDetailCommand.Execute(null);
+        }
+    }
+
+    private void InsertDetailBodyImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (InsertImage(DetailBodyEditor))
+        {
+            SyncDetailBodyDocument();
+        }
+    }
+
+    private void NewTaskBodyEditor_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var range = new TextRange(NewTaskBodyEditor.Document.ContentStart, NewTaskBodyEditor.Document.ContentEnd);
+        viewModel.NewTaskBody = range.Text.TrimEnd('\r', '\n');
+    }
+
+    private void InsertNewTaskBodyImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (InsertImage(NewTaskBodyEditor))
+        {
+            SyncNewTaskBodyDocument();
+        }
+    }
+
+    private void SyncNewTaskBodyDocument()
+    {
+        var range = new TextRange(NewTaskBodyEditor.Document.ContentStart, NewTaskBodyEditor.Document.ContentEnd);
+        viewModel.NewTaskBody = range.Text.TrimEnd('\r', '\n');
+
+        using var stream = new MemoryStream();
+        range.Save(stream, DataFormats.XamlPackage);
+        viewModel.NewTaskBodyDocument = stream.ToArray();
+    }
+
+    private void AddTask_Click(object sender, RoutedEventArgs e)
+    {
+        SyncNewTaskBodyDocument();
+
+        var titleBeforeAdd = viewModel.NewTaskTitle;
+        if (viewModel.AddTaskCommand.CanExecute(null))
+        {
+            viewModel.AddTaskCommand.Execute(null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(titleBeforeAdd) && string.IsNullOrEmpty(viewModel.NewTaskTitle))
+        {
+            NewTaskBodyEditor.Document = new FlowDocument();
+        }
+    }
+
+    private static bool InsertImage(RichTextBox editor)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "이미지 파일|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return false;
+        }
+
+        BitmapImage bitmap;
+        try
+        {
+            bitmap = LoadScaledBitmap(dialog.FileName);
+        }
+        catch (Exception)
+        {
+            MessageBox.Show("이미지를 불러올 수 없습니다.", "이미지 삽입 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        var image = new Image
+        {
+            Source = bitmap,
+            MaxWidth = MaxInsertedImageDisplayWidth,
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+
+        editor.Focus();
+        var container = new InlineUIContainer(image, editor.CaretPosition);
+        editor.CaretPosition = container.ElementEnd;
+        return true;
+    }
+
+    private static BitmapImage LoadScaledBitmap(string path)
+    {
+        var uri = new Uri(path, UriKind.Absolute);
+        var probe = new BitmapImage();
+        probe.BeginInit();
+        probe.CacheOption = BitmapCacheOption.OnLoad;
+        probe.UriSource = uri;
+        probe.EndInit();
+
+        if (probe.PixelWidth <= MaxInsertedImagePixelWidth)
+        {
+            probe.Freeze();
+            return probe;
+        }
+
+        var scaled = new BitmapImage();
+        scaled.BeginInit();
+        scaled.CacheOption = BitmapCacheOption.OnLoad;
+        scaled.UriSource = uri;
+        scaled.DecodePixelWidth = MaxInsertedImagePixelWidth;
+        scaled.EndInit();
+        scaled.Freeze();
+        return scaled;
     }
 
     private void RestoreWindowState()
@@ -115,6 +309,7 @@ public partial class MainWindow : Window
 
     private void DetailOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        SyncDetailBodyDocument();
         if (viewModel.CloseTaskDetailCommand.CanExecute(null))
         {
             viewModel.CloseTaskDetailCommand.Execute(null);

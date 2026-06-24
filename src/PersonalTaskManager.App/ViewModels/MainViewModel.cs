@@ -18,8 +18,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string newProjectName = string.Empty;
     private string newTaskTitle = string.Empty;
     private string newTaskBody = string.Empty;
+    private byte[]? newTaskBodyDocument;
     private string newComment = string.Empty;
     private string editingTaskBody = string.Empty;
+    private byte[]? editingTaskBodyDocument;
     private string editingCommentText = string.Empty;
     private string editingHistoryText = string.Empty;
     private string timeMemo = string.Empty;
@@ -193,6 +195,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set => SetProperty(ref newTaskBody, value);
     }
 
+    public byte[]? NewTaskBodyDocument
+    {
+        get => newTaskBodyDocument;
+        set => SetProperty(ref newTaskBodyDocument, value);
+    }
+
     public string NewComment
     {
         get => newComment;
@@ -203,6 +211,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         get => editingTaskBody;
         set => SetProperty(ref editingTaskBody, value);
+    }
+
+    public byte[]? EditingTaskBodyDocument
+    {
+        get => editingTaskBodyDocument;
+        set => SetProperty(ref editingTaskBodyDocument, value);
     }
 
     public string EditingCommentText
@@ -557,9 +571,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var task = TaskManagerDomain.CreateTask(SelectedProject, NewTaskTitle);
         task.Body = NewTaskBody;
+        task.BodyDocument = NewTaskBodyDocument;
         store.UpsertProject(SelectedProject);
         NewTaskTitle = string.Empty;
         NewTaskBody = string.Empty;
+        NewTaskBodyDocument = null;
         SelectedTask = task;
         RefreshAllViews();
     }
@@ -574,6 +590,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectedProject = Projects.FirstOrDefault(project => project.Id == task.ProjectId);
         SelectedTask = task;
         EditingTaskBody = task.Body;
+        EditingTaskBodyDocument = task.BodyDocument;
         IsBodyEditMode = false;
         NewComment = string.Empty;
         TimeMemo = string.Empty;
@@ -591,6 +608,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         EditingTaskBody = SelectedTask.Body;
+        EditingTaskBodyDocument = SelectedTask.BodyDocument;
         IsBodyEditMode = true;
     }
 
@@ -599,6 +617,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (SelectedTask is not null)
         {
             EditingTaskBody = SelectedTask.Body;
+            EditingTaskBodyDocument = SelectedTask.BodyDocument;
         }
 
         IsBodyEditMode = false;
@@ -642,6 +661,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         SelectedTask.Body = EditingTaskBody;
+        SelectedTask.BodyDocument = EditingTaskBodyDocument;
         SelectedTask.UpdatedAt = DateTime.Now;
         SelectedTask.Histories.Add(new TaskHistory
         {

@@ -10,6 +10,8 @@ public sealed class WorkTask : ISoftDeletable
 
     public string Body { get; set; } = string.Empty;
 
+    public byte[]? BodyDocument { get; set; }
+
     public Guid StatusId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;
