@@ -373,147 +373,77 @@
                                     </StackPanel>
                                 </StackPanel>
 
-                                <GroupBox Header="댓글 추가" Margin="0,16,0,16">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="110" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0"
-                                                 Text="{Binding NewComment, UpdateSourceTrigger=PropertyChanged}"
+                                <GroupBox Header="댓글 / 작업시간 추가" Margin="0,16,0,16">
+                                    <StackPanel>
+                                        <TextBox Text="{Binding NewComment, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource MultiLineInput}"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
                                                  MinHeight="70"
-                                                 Margin="0,4,10,8" />
-                                        <Button Grid.Column="1"
-                                                Content="댓글 추가"
-                                                VerticalAlignment="Stretch"
+                                                 Margin="0,4,0,8" />
+                                        <CheckBox Content="작업시간 함께 기록"
+                                                  IsChecked="{Binding LogTimeEntry}"
+                                                  Margin="0,0,0,8" />
+                                        <Grid IsEnabled="{Binding LogTimeEntry}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                <TextBlock Text="작업일" Style="{StaticResource FieldLabel}" />
+                                                <DatePicker SelectedDate="{Binding TimeEntryDate}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                                <TextBlock Text="분" Style="{StaticResource FieldLabel}" />
+                                                <TextBox Text="{Binding TimeMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                                <TextBlock Text="메모" Style="{StaticResource FieldLabel}" />
+                                                <TextBox Text="{Binding TimeMemo, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Button Content="추가"
+                                                Width="100"
+                                                Height="38"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,8,0,0"
                                                 Style="{StaticResource PrimaryButton}"
-                                                Command="{Binding AddCommentCommand}" />
-                                    </Grid>
+                                                Command="{Binding AddEntryCommand}" />
+                                    </StackPanel>
                                 </GroupBox>
 
-                                <GroupBox Header="작업시간 입력" Margin="0,0,0,16">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                            <TextBlock Text="작업일" Style="{StaticResource FieldLabel}" />
-                                            <DatePicker SelectedDate="{Binding TimeEntryDate}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                            <TextBlock Text="분" Style="{StaticResource FieldLabel}" />
-                                            <TextBox Text="{Binding TimeMinutes, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2" Margin="0,0,10,0">
-                                            <TextBlock Text="메모" Style="{StaticResource FieldLabel}" />
-                                            <TextBox Text="{Binding TimeMemo, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <Button Grid.Column="3" Content="시간 추가" Width="100" Height="38" VerticalAlignment="Bottom" Margin="0,0,0,8" Style="{StaticResource PrimaryButton}" Command="{Binding AddTimeEntryCommand}" />
-                                    </Grid>
-                                </GroupBox>
-
-                                <GroupBox Header="댓글" Margin="0,0,0,16">
-                                    <ItemsControl ItemsSource="{Binding SelectedTaskComments}">
+                                <GroupBox Header="타임라인" Margin="0,0,0,0">
+                                    <ItemsControl ItemsSource="{Binding SelectedTaskTimeline}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,10">
-                                                    <DockPanel>
-                                                        <Border DockPanel.Dock="Left"
-                                                                Width="34"
-                                                                Height="34"
-                                                                CornerRadius="17"
-                                                                Background="{StaticResource AccentBrush}"
-                                                                VerticalAlignment="Top"
-                                                                Margin="0,0,10,0">
-                                                            <TextBlock Text="C" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
-                                                        </Border>
-                                                        <StackPanel>
-                                                            <DockPanel>
-                                                                <TextBlock Text="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Foreground="{StaticResource MutedTextBrush}" FontSize="12" VerticalAlignment="Center" />
-                                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                    <Button Content="수정"
-                                                                            Width="54"
-                                                                            Padding="4,3"
-                                                                            Command="{Binding DataContext.StartEditCommentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                            CommandParameter="{Binding}" />
-                                                                    <Button Content="삭제"
-                                                                            Width="54"
-                                                                            Margin="6,4,0,4"
-                                                                            Padding="4,3"
-                                                                            Command="{Binding DataContext.DeleteCommentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                            CommandParameter="{Binding}" />
-                                                                </StackPanel>
-                                                            </DockPanel>
-                                                            <StackPanel>
-                                                                <StackPanel.Visibility>
-                                                                    <MultiBinding Converter="{StaticResource GuidNotMatch}">
-                                                                        <Binding Path="Id" />
-                                                                        <Binding Path="DataContext.EditingCommentId" RelativeSource="{RelativeSource AncestorType=Window}" />
-                                                                    </MultiBinding>
-                                                                </StackPanel.Visibility>
-                                                                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" FontSize="14" Margin="0,3,0,0" />
-                                                            </StackPanel>
-                                                            <StackPanel>
-                                                                <StackPanel.Visibility>
-                                                                    <MultiBinding Converter="{StaticResource GuidMatch}">
-                                                                        <Binding Path="Id" />
-                                                                        <Binding Path="DataContext.EditingCommentId" RelativeSource="{RelativeSource AncestorType=Window}" />
-                                                                    </MultiBinding>
-                                                                </StackPanel.Visibility>
-                                                                <TextBox Text="{Binding DataContext.EditingCommentText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
-                                                                         Style="{StaticResource MultiLineInput}"
-                                                                         AcceptsReturn="True"
-                                                                         TextWrapping="Wrap"
-                                                                         MinHeight="70" />
-                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                    <Button Content="저장" Width="70" Style="{StaticResource PrimaryButton}" Command="{Binding DataContext.SaveCommentEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                    <Button Content="취소" Width="70" Margin="8,4,0,4" Command="{Binding DataContext.CancelCommentEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </StackPanel>
-                                                    </DockPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </GroupBox>
-
-                                <GroupBox Header="히스토리" Margin="0,0,0,0">
-                                    <ItemsControl ItemsSource="{Binding SelectedTaskHistories}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,8">
                                                     <StackPanel>
                                                         <DockPanel>
                                                             <TextBlock Text="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Foreground="{StaticResource MutedTextBrush}" FontSize="12" VerticalAlignment="Center" />
                                                             <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                                                <TextBlock Text="{Binding Type}" Foreground="{StaticResource AccentDarkBrush}" FontSize="11" FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding Kind}" Foreground="{StaticResource AccentDarkBrush}" FontSize="11" FontWeight="SemiBold" />
                                                             </Border>
                                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                                                 <Button Content="수정"
                                                                         Width="54"
                                                                         Padding="4,3"
-                                                                        Command="{Binding DataContext.StartEditHistoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        Command="{Binding DataContext.StartEditTimelineItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                         CommandParameter="{Binding}" />
                                                                 <Button Content="삭제"
                                                                         Width="54"
                                                                         Margin="6,4,0,4"
                                                                         Padding="4,3"
-                                                                        Command="{Binding DataContext.DeleteHistoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        Command="{Binding DataContext.DeleteTimelineItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                         CommandParameter="{Binding}" />
                                                             </StackPanel>
                                                         </DockPanel>
-                                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,4,0,0">
+                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,4,0,0">
                                                             <TextBlock.Visibility>
                                                                 <MultiBinding Converter="{StaticResource GuidNotMatch}">
                                                                     <Binding Path="Id" />
-                                                                    <Binding Path="DataContext.EditingHistoryId" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                    <Binding Path="DataContext.EditingTimelineItemId" RelativeSource="{RelativeSource AncestorType=Window}" />
                                                                 </MultiBinding>
                                                             </TextBlock.Visibility>
                                                         </TextBlock>
@@ -521,17 +451,17 @@
                                                             <StackPanel.Visibility>
                                                                 <MultiBinding Converter="{StaticResource GuidMatch}">
                                                                     <Binding Path="Id" />
-                                                                    <Binding Path="DataContext.EditingHistoryId" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                    <Binding Path="DataContext.EditingTimelineItemId" RelativeSource="{RelativeSource AncestorType=Window}" />
                                                                 </MultiBinding>
                                                             </StackPanel.Visibility>
-                                                            <TextBox Text="{Binding DataContext.EditingHistoryText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
+                                                            <TextBox Text="{Binding DataContext.EditingTimelineText, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
                                                                      Style="{StaticResource MultiLineInput}"
                                                                      AcceptsReturn="True"
                                                                      TextWrapping="Wrap"
                                                                      MinHeight="60" />
                                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                <Button Content="저장" Width="70" Style="{StaticResource PrimaryButton}" Command="{Binding DataContext.SaveHistoryEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                <Button Content="취소" Width="70" Margin="8,4,0,4" Command="{Binding DataContext.CancelHistoryEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                <Button Content="저장" Width="70" Style="{StaticResource PrimaryButton}" Command="{Binding DataContext.SaveTimelineItemEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                <Button Content="취소" Width="70" Margin="8,4,0,4" Command="{Binding DataContext.CancelTimelineItemEditCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </StackPanel>

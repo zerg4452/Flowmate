@@ -22,11 +22,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string newComment = string.Empty;
     private string editingTaskBody = string.Empty;
     private byte[]? editingTaskBodyDocument;
-    private string editingCommentText = string.Empty;
-    private string editingHistoryText = string.Empty;
+    private string editingTimelineText = string.Empty;
     private string timeMemo = string.Empty;
     private string keyword = string.Empty;
     private int timeMinutes = 30;
+    private bool logTimeEntry;
     private DateTime? filterStartDate;
     private DateTime? filterEndDate;
     private DateTime? timeEntryDate = DateTime.Today;
@@ -35,8 +35,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private WorkTask? selectedTask;
     private ProjectStatus? selectedTaskStatus;
     private TrashItemView? selectedTrashItem;
-    private TaskComment? editingComment;
-    private TaskHistory? editingHistory;
+    private TaskTimelineItem? editingTimelineItem;
     private bool isTaskDetailOpen;
     private bool isBodyEditMode;
     private string reminderMessage = string.Empty;
@@ -63,16 +62,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CancelEditBodyCommand = new RelayCommand(CancelEditBody);
         SaveTaskBodyCommand = new RelayCommand(SaveTaskBody, () => SelectedTask is not null);
         ChangeTaskStatusCommand = new RelayCommand(ChangeTaskStatus, () => SelectedTask is not null && SelectedTaskStatus is not null);
-        AddCommentCommand = new RelayCommand(AddComment, () => SelectedTask is not null);
-        StartEditCommentCommand = new RelayCommand<TaskComment>(StartEditComment, comment => comment is not null);
-        SaveCommentEditCommand = new RelayCommand(SaveCommentEdit, () => EditingComment is not null);
-        CancelCommentEditCommand = new RelayCommand(CancelCommentEdit);
-        DeleteCommentCommand = new RelayCommand<TaskComment>(DeleteComment, comment => comment is not null);
-        StartEditHistoryCommand = new RelayCommand<TaskHistory>(StartEditHistory, history => history is not null);
-        SaveHistoryEditCommand = new RelayCommand(SaveHistoryEdit, () => EditingHistory is not null);
-        CancelHistoryEditCommand = new RelayCommand(CancelHistoryEdit);
-        DeleteHistoryCommand = new RelayCommand<TaskHistory>(DeleteHistory, history => history is not null);
-        AddTimeEntryCommand = new RelayCommand(AddTimeEntry, () => SelectedTask is not null);
+        AddEntryCommand = new RelayCommand(AddEntry, () => SelectedTask is not null);
+        StartEditTimelineItemCommand = new RelayCommand<TaskTimelineItem>(StartEditTimelineItem, item => item?.Comment is not null || item?.History is not null);
+        SaveTimelineItemEditCommand = new RelayCommand(SaveTimelineItemEdit, () => EditingTimelineItem is not null);
+        CancelTimelineItemEditCommand = new RelayCommand(CancelTimelineItemEdit);
+        DeleteTimelineItemCommand = new RelayCommand<TaskTimelineItem>(DeleteTimelineItem, item => item is not null);
         DeleteProjectCommand = new RelayCommand(DeleteProject, () => SelectedProject is not null);
         DeleteTaskCommand = new RelayCommand(DeleteTask, () => SelectedTask is not null);
         SaveOptionsCommand = new RelayCommand(SaveOptions);
@@ -111,9 +105,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<TrashItemView> TrashItems { get; } = [];
 
-    public ObservableCollection<TaskComment> SelectedTaskComments { get; } = [];
-
-    public ObservableCollection<TaskHistory> SelectedTaskHistories { get; } = [];
+    public ObservableCollection<TaskTimelineItem> SelectedTaskTimeline { get; } = [];
 
     public IReadOnlyList<string> MenuItems { get; } = ["Main", "Projects", "Statistics", "Options"];
 
@@ -137,25 +129,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand ChangeTaskStatusCommand { get; }
 
-    public RelayCommand AddCommentCommand { get; }
+    public RelayCommand AddEntryCommand { get; }
 
-    public RelayCommand<TaskComment> StartEditCommentCommand { get; }
+    public RelayCommand<TaskTimelineItem> StartEditTimelineItemCommand { get; }
 
-    public RelayCommand SaveCommentEditCommand { get; }
+    public RelayCommand SaveTimelineItemEditCommand { get; }
 
-    public RelayCommand CancelCommentEditCommand { get; }
+    public RelayCommand CancelTimelineItemEditCommand { get; }
 
-    public RelayCommand<TaskComment> DeleteCommentCommand { get; }
-
-    public RelayCommand<TaskHistory> StartEditHistoryCommand { get; }
-
-    public RelayCommand SaveHistoryEditCommand { get; }
-
-    public RelayCommand CancelHistoryEditCommand { get; }
-
-    public RelayCommand<TaskHistory> DeleteHistoryCommand { get; }
-
-    public RelayCommand AddTimeEntryCommand { get; }
+    public RelayCommand<TaskTimelineItem> DeleteTimelineItemCommand { get; }
 
     public RelayCommand DeleteProjectCommand { get; }
 
@@ -219,22 +201,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set => SetProperty(ref editingTaskBodyDocument, value);
     }
 
-    public string EditingCommentText
+    public string EditingTimelineText
     {
-        get => editingCommentText;
-        set => SetProperty(ref editingCommentText, value);
-    }
-
-    public string EditingHistoryText
-    {
-        get => editingHistoryText;
-        set => SetProperty(ref editingHistoryText, value);
+        get => editingTimelineText;
+        set => SetProperty(ref editingTimelineText, value);
     }
 
     public string TimeMemo
     {
         get => timeMemo;
         set => SetProperty(ref timeMemo, value);
+    }
+
+    public bool LogTimeEntry
+    {
+        get => logTimeEntry;
+        set => SetProperty(ref logTimeEntry, value);
     }
 
     public string Keyword
@@ -337,35 +319,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public TaskComment? EditingComment
+    public TaskTimelineItem? EditingTimelineItem
     {
-        get => editingComment;
+        get => editingTimelineItem;
         set
         {
-            if (SetProperty(ref editingComment, value))
+            if (SetProperty(ref editingTimelineItem, value))
             {
-                OnPropertyChanged(nameof(EditingCommentId));
-                SaveCommentEditCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(EditingTimelineItemId));
+                SaveTimelineItemEditCommand.RaiseCanExecuteChanged();
             }
         }
     }
 
-    public Guid? EditingCommentId => EditingComment?.Id;
-
-    public TaskHistory? EditingHistory
-    {
-        get => editingHistory;
-        set
-        {
-            if (SetProperty(ref editingHistory, value))
-            {
-                OnPropertyChanged(nameof(EditingHistoryId));
-                SaveHistoryEditCommand.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public Guid? EditingHistoryId => EditingHistory?.Id;
+    public Guid? EditingTimelineItemId => EditingTimelineItem?.Id;
 
     public bool IsTaskDetailOpen
     {
@@ -594,8 +561,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IsBodyEditMode = false;
         NewComment = string.Empty;
         TimeMemo = string.Empty;
-        CancelCommentEdit();
-        CancelHistoryEdit();
+        LogTimeEntry = false;
+        CancelTimelineItemEdit();
         RefreshSelectedTaskDetails();
         IsTaskDetailOpen = true;
     }
@@ -688,149 +655,125 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshAllViews();
     }
 
-    private void AddComment()
+    private void AddEntry()
     {
         var project = FindProjectForSelectedTask();
-        if (project is null || SelectedTask is null || string.IsNullOrWhiteSpace(NewComment))
+        if (project is null || SelectedTask is null)
         {
             return;
         }
 
-        TaskManagerDomain.AddComment(SelectedTask, NewComment.Trim(), DateTime.Now);
+        var hasComment = !string.IsNullOrWhiteSpace(NewComment);
+        var hasTimeEntry = LogTimeEntry && TimeEntryDate is not null;
+        if (!hasComment && !hasTimeEntry)
+        {
+            return;
+        }
+
+        if (hasComment)
+        {
+            TaskManagerDomain.AddComment(SelectedTask, NewComment.Trim(), DateTime.Now);
+        }
+
+        if (hasTimeEntry)
+        {
+            TaskManagerDomain.AddTimeEntry(SelectedTask, DateOnly.FromDateTime(TimeEntryDate!.Value), TimeMinutes, TimeMemo);
+        }
+
         store.UpsertProject(project);
         NewComment = string.Empty;
-        RefreshAllViews();
-    }
-
-    private void StartEditComment(TaskComment? comment)
-    {
-        if (comment is null)
-        {
-            return;
-        }
-
-        EditingComment = comment;
-        EditingCommentText = comment.Content;
-    }
-
-    private void SaveCommentEdit()
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || EditingComment is null)
-        {
-            return;
-        }
-
-        TaskManagerDomain.EditComment(EditingComment, EditingCommentText.Trim(), DateTime.Now);
-        store.UpsertProject(project);
-        CancelCommentEdit();
-        RefreshAllViews();
-    }
-
-    private void CancelCommentEdit()
-    {
-        EditingComment = null;
-        EditingCommentText = string.Empty;
-    }
-
-    private void DeleteComment(TaskComment? comment)
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || comment is null)
-        {
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            "이 댓글을 삭제하시겠습니까?\n삭제한 댓글은 옵션 > 휴지통에서 복구할 수 있습니다.",
-            "댓글 삭제 확인",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        if (EditingComment?.Id == comment.Id)
-        {
-            CancelCommentEdit();
-        }
-
-        TaskManagerDomain.SoftDelete(comment, DeleteOrigin.Direct);
-        store.UpsertProject(project);
-        RefreshAllViews();
-    }
-
-    private void DeleteHistory(TaskHistory? history)
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || history is null)
-        {
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            "이 히스토리 항목을 삭제하시겠습니까?",
-            "히스토리 삭제 확인",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (answer != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        if (EditingHistory?.Id == history.Id)
-        {
-            CancelHistoryEdit();
-        }
-
-        TaskManagerDomain.SoftDelete(history, DeleteOrigin.Direct);
-        store.UpsertProject(project);
-        RefreshAllViews();
-    }
-
-    private void StartEditHistory(TaskHistory? history)
-    {
-        if (history is null)
-        {
-            return;
-        }
-
-        EditingHistory = history;
-        EditingHistoryText = history.Message;
-    }
-
-    private void SaveHistoryEdit()
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || EditingHistory is null)
-        {
-            return;
-        }
-
-        TaskManagerDomain.EditHistory(EditingHistory, EditingHistoryText.Trim(), DateTime.Now);
-        store.UpsertProject(project);
-        CancelHistoryEdit();
-        RefreshAllViews();
-    }
-
-    private void CancelHistoryEdit()
-    {
-        EditingHistory = null;
-        EditingHistoryText = string.Empty;
-    }
-
-    private void AddTimeEntry()
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || SelectedTask is null || TimeEntryDate is null)
-        {
-            return;
-        }
-
-        TaskManagerDomain.AddTimeEntry(SelectedTask, DateOnly.FromDateTime(TimeEntryDate.Value), TimeMinutes, TimeMemo);
-        store.UpsertProject(project);
         TimeMemo = string.Empty;
+        LogTimeEntry = false;
+        OnPropertyChanged(nameof(SelectedTaskTotalText));
+        RefreshAllViews();
+    }
+
+    private void StartEditTimelineItem(TaskTimelineItem? item)
+    {
+        if (item?.Comment is null && item?.History is null)
+        {
+            return;
+        }
+
+        EditingTimelineItem = item;
+        EditingTimelineText = item.Comment?.Content ?? item.History!.Message;
+    }
+
+    private void SaveTimelineItemEdit()
+    {
+        var project = FindProjectForSelectedTask();
+        if (project is null || EditingTimelineItem is null)
+        {
+            return;
+        }
+
+        if (EditingTimelineItem.Comment is { } comment)
+        {
+            TaskManagerDomain.EditComment(comment, EditingTimelineText.Trim(), DateTime.Now);
+        }
+        else if (EditingTimelineItem.History is { } history)
+        {
+            TaskManagerDomain.EditHistory(history, EditingTimelineText.Trim(), DateTime.Now);
+        }
+
+        store.UpsertProject(project);
+        CancelTimelineItemEdit();
+        RefreshAllViews();
+    }
+
+    private void CancelTimelineItemEdit()
+    {
+        EditingTimelineItem = null;
+        EditingTimelineText = string.Empty;
+    }
+
+    private void DeleteTimelineItem(TaskTimelineItem? item)
+    {
+        var project = FindProjectForSelectedTask();
+        if (project is null || item is null)
+        {
+            return;
+        }
+
+        string label;
+        string message;
+        ISoftDeletable target;
+        if (item.Comment is { } comment)
+        {
+            label = "댓글";
+            message = "이 댓글을 삭제하시겠습니까?\n삭제한 댓글은 옵션 > 휴지통에서 복구할 수 있습니다.";
+            target = comment;
+        }
+        else if (item.TimeEntry is { } timeEntry)
+        {
+            label = "작업시간 기록";
+            message = "이 작업시간 기록을 삭제하시겠습니까?";
+            target = timeEntry;
+        }
+        else if (item.History is { } history)
+        {
+            label = "히스토리 항목";
+            message = "이 히스토리 항목을 삭제하시겠습니까?";
+            target = history;
+        }
+        else
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(message, $"{label} 삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        if (EditingTimelineItem?.Id == item.Id)
+        {
+            CancelTimelineItemEdit();
+        }
+
+        TaskManagerDomain.SoftDelete(target, DeleteOrigin.Direct);
+        store.UpsertProject(project);
         OnPropertyChanged(nameof(SelectedTaskTotalText));
         RefreshAllViews();
     }
@@ -977,25 +920,67 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshSelectedTaskDetails()
     {
-        SelectedTaskComments.Clear();
-        SelectedTaskHistories.Clear();
+        SelectedTaskTimeline.Clear();
         if (SelectedTask is null)
         {
             return;
         }
 
-        foreach (var comment in SelectedTask.Comments
-                     .Where(comment => !comment.IsDeleted)
-                     .OrderBy(comment => comment.CreatedAt))
+        var items = new List<TaskTimelineItem>();
+
+        foreach (var comment in SelectedTask.Comments.Where(comment => !comment.IsDeleted))
         {
-            SelectedTaskComments.Add(comment);
+            items.Add(new TaskTimelineItem
+            {
+                Id = comment.Id,
+                CreatedAt = comment.CreatedAt,
+                Kind = "댓글",
+                Text = comment.Content,
+                Comment = comment
+            });
+        }
+
+        foreach (var entry in SelectedTask.TimeEntries.Where(entry => !entry.IsDeleted))
+        {
+            var text = $"{entry.Minutes}분 작업 ({entry.WorkDate:yyyy-MM-dd})";
+            if (!string.IsNullOrWhiteSpace(entry.Memo))
+            {
+                text += $" - {entry.Memo}";
+            }
+
+            items.Add(new TaskTimelineItem
+            {
+                Id = entry.Id,
+                CreatedAt = entry.CreatedAt,
+                Kind = "작업시간",
+                Text = text,
+                TimeEntry = entry
+            });
         }
 
         foreach (var history in SelectedTask.Histories
-                     .Where(history => !history.IsDeleted)
-                     .OrderByDescending(history => history.CreatedAt))
+                     .Where(history => !history.IsDeleted && history.Type is not (HistoryType.CommentAdded or HistoryType.TimeAdded)))
         {
-            SelectedTaskHistories.Add(history);
+            items.Add(new TaskTimelineItem
+            {
+                Id = history.Id,
+                CreatedAt = history.CreatedAt,
+                Kind = history.Type switch
+                {
+                    HistoryType.StatusChanged => "상태변경",
+                    HistoryType.BodyEdited => "본문수정",
+                    HistoryType.Deleted => "삭제",
+                    HistoryType.Restored => "복구",
+                    _ => history.Type.ToString()
+                },
+                Text = history.Message,
+                History = history
+            });
+        }
+
+        foreach (var item in items.OrderByDescending(item => item.CreatedAt))
+        {
+            SelectedTaskTimeline.Add(item);
         }
     }
 
@@ -1188,14 +1173,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StartEditBodyCommand.RaiseCanExecuteChanged();
         SaveTaskBodyCommand.RaiseCanExecuteChanged();
         ChangeTaskStatusCommand.RaiseCanExecuteChanged();
-        AddCommentCommand.RaiseCanExecuteChanged();
-        StartEditCommentCommand.RaiseCanExecuteChanged();
-        SaveCommentEditCommand.RaiseCanExecuteChanged();
-        CancelCommentEditCommand.RaiseCanExecuteChanged();
-        StartEditHistoryCommand.RaiseCanExecuteChanged();
-        SaveHistoryEditCommand.RaiseCanExecuteChanged();
-        CancelHistoryEditCommand.RaiseCanExecuteChanged();
-        AddTimeEntryCommand.RaiseCanExecuteChanged();
+        AddEntryCommand.RaiseCanExecuteChanged();
+        StartEditTimelineItemCommand.RaiseCanExecuteChanged();
+        SaveTimelineItemEditCommand.RaiseCanExecuteChanged();
+        CancelTimelineItemEditCommand.RaiseCanExecuteChanged();
+        DeleteTimelineItemCommand.RaiseCanExecuteChanged();
         DeleteProjectCommand.RaiseCanExecuteChanged();
         DeleteTaskCommand.RaiseCanExecuteChanged();
         RestoreTrashItemCommand.RaiseCanExecuteChanged();

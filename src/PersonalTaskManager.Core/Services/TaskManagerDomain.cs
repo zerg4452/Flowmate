@@ -113,14 +113,6 @@ public static class TaskManagerDomain
         };
 
         task.Comments.Add(comment);
-        task.Histories.Add(new TaskHistory
-        {
-            TaskId = task.Id,
-            Type = HistoryType.CommentAdded,
-            Message = "Comment added",
-            NewValue = content,
-            CreatedAt = createdAt
-        });
 
         return comment;
     }
@@ -144,31 +136,16 @@ public static class TaskManagerDomain
             throw new ArgumentOutOfRangeException(nameof(minutes), "Minutes must be greater than zero.");
         }
 
-        var now = DateTime.Now;
         var entry = new TimeEntry
         {
             TaskId = task.Id,
             WorkDate = workDate,
             Minutes = minutes,
             Memo = memo,
-            CreatedAt = now
+            CreatedAt = DateTime.Now
         };
 
-        var message = $"{minutes} minutes added on {workDate:yyyy-MM-dd}";
-        if (!string.IsNullOrWhiteSpace(memo))
-        {
-            message += $" - {memo.Trim()}";
-        }
-
         task.TimeEntries.Add(entry);
-        task.Histories.Add(new TaskHistory
-        {
-            TaskId = task.Id,
-            Type = HistoryType.TimeAdded,
-            Message = message,
-            NewValue = minutes.ToString(),
-            CreatedAt = now
-        });
 
         return entry;
     }
