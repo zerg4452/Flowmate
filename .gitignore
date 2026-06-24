@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+publish/
+
+# Bundled .NET SDK (수백 MB, 커밋 금지)
+.tools/
+
+# LiteDB / 로컬 데이터
+*.db
+*.litedb
+
+# IDE
+.vs/
+.idea/
+*.user
+
+# OS
+Thumbs.db
+.DS_Store

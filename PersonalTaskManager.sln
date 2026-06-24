@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{42170B0B-A08F-4E57-B4B7-411AADF7364E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PersonalTaskManager.App", "src\PersonalTaskManager.App\PersonalTaskManager.App.csproj", "{1B22E9F6-078C-4016-AD02-C559A5C69833}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1B22E9F6-078C-4016-AD02-C559A5C69833}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B22E9F6-078C-4016-AD02-C559A5C69833}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B22E9F6-078C-4016-AD02-C559A5C69833}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B22E9F6-078C-4016-AD02-C559A5C69833}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1B22E9F6-078C-4016-AD02-C559A5C69833} = {42170B0B-A08F-4E57-B4B7-411AADF7364E}
+	EndGlobalSection
+EndGlobal
