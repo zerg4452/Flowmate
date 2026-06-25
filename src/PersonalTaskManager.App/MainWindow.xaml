@@ -22,6 +22,7 @@
         <infra:GuidEqualsToVisibilityConverter x:Key="GuidNotMatch" Invert="True" />
         <infra:BoolToVisibilityConverter x:Key="BoolToVis" />
         <infra:BoolToVisibilityConverter x:Key="BoolToVisInverse" Invert="True" />
+        <infra:EnumEqualsToBoolConverter x:Key="AiToolEquals" />
 
         <!-- Board task card -->
         <Style x:Key="TaskCard" TargetType="Button">
@@ -304,7 +305,7 @@
                         </Border.Style>
                     </Border>
                     <Border x:Name="DetailCard"
-                            Width="780"
+                            MaxWidth="1040"
                             MaxHeight="780"
                             Background="White"
                             CornerRadius="14"
@@ -334,7 +335,12 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="780" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" MaxHeight="732">
                             <StackPanel>
                                 <DockPanel Margin="0,0,0,8">
                                     <Button DockPanel.Dock="Right" Content="닫기" Width="76" Click="CloseTaskDetail_Click" />
@@ -501,6 +507,45 @@
                                 </GroupBox>
                             </StackPanel>
                         </ScrollViewer>
+
+                        <Border Grid.Column="1"
+                                Width="260"
+                                Margin="20,0,0,0"
+                                Background="#F8FAFC"
+                                BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14"
+                                Visibility="{Binding IsAiWorkAvailable, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="AI 작업" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10" />
+
+                                <Button Content="활성화"
+                                        Style="{StaticResource PrimaryButton}"
+                                        Command="{Binding ActivateAiPanelCommand}"
+                                        Visibility="{Binding IsAiPanelActivated, Converter={StaticResource BoolToVisInverse}}" />
+
+                                <StackPanel Visibility="{Binding IsAiPanelActivated, Converter={StaticResource BoolToVis}}">
+                                    <Button Content="터미널 창 활성화"
+                                            Margin="0,0,0,12"
+                                            Command="{Binding OpenTerminalCommand}" />
+
+                                    <TextBlock Text="명령 마크다운" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding AiCommandMarkdown, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource MultiLineInput}"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             MinHeight="220"
+                                             VerticalScrollBarVisibility="Auto" />
+
+                                    <Button Content="마크다운 저장"
+                                            Margin="0,8,0,0"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SaveAiCommandMarkdownCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        </Grid>
                     </Border>
                 </Grid>
 
@@ -572,12 +617,35 @@
                     </GroupBox>
 
                     <GroupBox Header="프로젝트 목록">
-                        <DataGrid ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" MinHeight="460">
+                        <DataGrid ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" MinHeight="300">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="프로젝트" Binding="{Binding Name}" Width="*" />
                                 <DataGridCheckBoxColumn Header="사용" Binding="{Binding IsActive}" Width="60" />
                             </DataGrid.Columns>
                         </DataGrid>
+                    </GroupBox>
+
+                    <GroupBox Header="AI 작업 설정">
+                        <StackPanel>
+                            <TextBlock Text="워크스페이스 경로" Style="{StaticResource FieldLabel}" />
+                            <DockPanel Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="찾아보기" Width="84" Click="BrowseWorkspacePath_Click" />
+                                <TextBox Text="{Binding ProjectWorkspacePath, UpdateSourceTrigger=PropertyChanged}" />
+                            </DockPanel>
+
+                            <TextBlock Text="AI 도구" Style="{StaticResource FieldLabel}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <RadioButton Content="Claude Code"
+                                             GroupName="ProjectAiTool"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding ProjectAiTool, Converter={StaticResource AiToolEquals}, ConverterParameter=ClaudeCode}" />
+                                <RadioButton Content="Codex"
+                                             GroupName="ProjectAiTool"
+                                             IsChecked="{Binding ProjectAiTool, Converter={StaticResource AiToolEquals}, ConverterParameter=Codex}" />
+                            </StackPanel>
+
+                            <Button Content="AI 설정 저장" Width="110" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Command="{Binding SaveProjectAiSettingsCommand}" />
+                        </StackPanel>
                     </GroupBox>
                 </StackPanel>
 

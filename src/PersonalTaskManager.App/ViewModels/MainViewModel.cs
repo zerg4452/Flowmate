@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using PersonalTaskManager.App.Infrastructure;
@@ -48,6 +50,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool isDocumentEditMode;
     private string reminderMessage = string.Empty;
     private DateOnly? reminderAcknowledgedDate;
+    private string projectWorkspacePath = string.Empty;
+    private AiCliTool? projectAiTool;
+    private bool isAiPanelActivated;
+    private string aiCommandMarkdown = string.Empty;
 
     public MainViewModel()
         : this(new LiteDbTaskStore(AppDataPaths.DatabasePath))
@@ -89,6 +95,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ClearReminderCommand = new RelayCommand(() => ReminderMessage = string.Empty);
         RestoreTrashItemCommand = new RelayCommand(RestoreTrashItem, () => SelectedTrashItem is not null);
         PermanentlyDeleteTrashItemCommand = new RelayCommand(PermanentlyDeleteTrashItem, () => SelectedTrashItem is not null);
+        SaveProjectAiSettingsCommand = new RelayCommand(SaveProjectAiSettings, () => SelectedProject is not null);
+        ActivateAiPanelCommand = new RelayCommand(() => IsAiPanelActivated = true, () => IsAiWorkAvailable && !IsAiPanelActivated);
+        OpenTerminalCommand = new RelayCommand(OpenTerminal, () => IsAiWorkAvailable);
+        SaveAiCommandMarkdownCommand = new RelayCommand(SaveAiCommandMarkdown, () => IsAiWorkAvailable && !string.IsNullOrWhiteSpace(AiCommandMarkdown));
 
         Load();
         reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -185,6 +195,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand RestoreTrashItemCommand { get; }
 
     public RelayCommand PermanentlyDeleteTrashItemCommand { get; }
+
+    public RelayCommand SaveProjectAiSettingsCommand { get; }
+
+    public RelayCommand ActivateAiPanelCommand { get; }
+
+    public RelayCommand OpenTerminalCommand { get; }
+
+    public RelayCommand SaveAiCommandMarkdownCommand { get; }
 
     public string CurrentView
     {
@@ -362,10 +380,59 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref selectedProject, value))
             {
+                ProjectWorkspacePath = value?.WorkspacePath ?? string.Empty;
+                ProjectAiTool = value?.AiCliTool;
                 RefreshSelectedProjectStatuses();
                 RefreshProjectDocuments();
                 RaiseCommandStates();
             }
+        }
+    }
+
+    public string ProjectWorkspacePath
+    {
+        get => projectWorkspacePath;
+        set => SetProperty(ref projectWorkspacePath, value);
+    }
+
+    public AiCliTool? ProjectAiTool
+    {
+        get => projectAiTool;
+        set => SetProperty(ref projectAiTool, value);
+    }
+
+    public bool IsAiPanelActivated
+    {
+        get => isAiPanelActivated;
+        set
+        {
+            if (SetProperty(ref isAiPanelActivated, value))
+            {
+                ActivateAiPanelCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string AiCommandMarkdown
+    {
+        get => aiCommandMarkdown;
+        set
+        {
+            if (SetProperty(ref aiCommandMarkdown, value))
+            {
+                SaveAiCommandMarkdownCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsAiWorkAvailable
+    {
+        get
+        {
+            var project = FindProjectForSelectedTask();
+            return project is not null &&
+                   !string.IsNullOrWhiteSpace(project.WorkspacePath) &&
+                   project.AiCliTool is not null;
         }
     }
 
@@ -700,6 +767,75 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         IsAddTaskOpen = true;
     }
 
+    private void SaveProjectAiSettings()
+    {
+        if (SelectedProject is null)
+        {
+            return;
+        }
+
+        SelectedProject.WorkspacePath = ProjectWorkspacePath.Trim();
+        SelectedProject.AiCliTool = ProjectAiTool;
+        SelectedProject.UpdatedAt = DateTime.Now;
+        store.UpsertProject(SelectedProject);
+        RaiseCommandStates();
+    }
+
+    private void OpenTerminal()
+    {
+        var project = FindProjectForSelectedTask();
+        if (project is null || string.IsNullOrWhiteSpace(project.WorkspacePath))
+        {
+            return;
+        }
+
+        if (!Directory.Exists(project.WorkspacePath))
+        {
+            MessageBox.Show("워크스페이스 경로를 찾을 수 없습니다.", "터미널 활성화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo("cmd.exe")
+            {
+                WorkingDirectory = project.WorkspacePath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"터미널을 실행할 수 없습니다.\n{ex.Message}", "터미널 활성화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void SaveAiCommandMarkdown()
+    {
+        var project = FindProjectForSelectedTask();
+        if (project is null || SelectedTask is null || string.IsNullOrWhiteSpace(project.WorkspacePath))
+        {
+            return;
+        }
+
+        if (!Directory.Exists(project.WorkspacePath))
+        {
+            MessageBox.Show("워크스페이스 경로를 찾을 수 없습니다.", "마크다운 저장 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var path = Path.Combine(project.WorkspacePath, $"flowmate-task-{SelectedTask.Id}.md");
+
+        try
+        {
+            File.WriteAllText(path, AiCommandMarkdown);
+            MessageBox.Show($"마크다운 파일을 저장했습니다.\n{path}", "저장 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"마크다운 파일을 저장할 수 없습니다.\n{ex.Message}", "마크다운 저장 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void AddTask()
     {
         var project = SelectedProjectFilter;
@@ -844,6 +980,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         NewComment = string.Empty;
         TimeMemo = string.Empty;
         LogTimeEntry = false;
+        IsAiPanelActivated = false;
+        AiCommandMarkdown = string.Empty;
         CancelTimelineItemEdit();
         RefreshSelectedTaskDetails();
         IsTaskDetailOpen = true;
@@ -1539,6 +1677,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         DeleteTaskCommand.RaiseCanExecuteChanged();
         RestoreTrashItemCommand.RaiseCanExecuteChanged();
         PermanentlyDeleteTrashItemCommand.RaiseCanExecuteChanged();
+        SaveProjectAiSettingsCommand.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(IsAiWorkAvailable));
+        ActivateAiPanelCommand.RaiseCanExecuteChanged();
+        OpenTerminalCommand.RaiseCanExecuteChanged();
+        SaveAiCommandMarkdownCommand.RaiseCanExecuteChanged();
     }
 
     private static string FormatMinutes(int minutes)

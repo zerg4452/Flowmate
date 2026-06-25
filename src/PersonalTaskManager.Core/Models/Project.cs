@@ -18,6 +18,10 @@ public sealed class Project : ISoftDeletable
 
     public DeleteOrigin? DeleteOrigin { get; set; }
 
+    public string WorkspacePath { get; set; } = string.Empty;
+
+    public AiCliTool? AiCliTool { get; set; }
+
     public List<ProjectStatus> Statuses { get; set; } = [];
 
     public List<WorkTask> Tasks { get; set; } = [];

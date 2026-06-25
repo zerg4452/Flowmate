@@ -552,6 +552,20 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
+    private void BrowseWorkspacePath_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog();
+        if (!string.IsNullOrWhiteSpace(viewModel.ProjectWorkspacePath) && Directory.Exists(viewModel.ProjectWorkspacePath))
+        {
+            dialog.InitialDirectory = viewModel.ProjectWorkspacePath;
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            viewModel.ProjectWorkspacePath = dialog.FolderName;
+        }
+    }
+
     private void ThemePreset_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string tag } && tag.Split(';') is [var fg, var bg])
