@@ -187,6 +187,11 @@ public static class TaskManagerDomain
         {
             SoftDelete(task, DeleteOrigin.Cascade, deletedAt);
         }
+
+        foreach (var document in project.Documents)
+        {
+            MarkDeleted(document, DeleteOrigin.Cascade, deletedAt);
+        }
     }
 
     public static void SoftDelete(WorkTask task, DeleteOrigin origin, DateTime? deletedAt = null)

@@ -22,6 +22,7 @@ public partial class MainWindow : Window
 
     private readonly MainViewModel viewModel;
     private Point? dragStartPoint;
+    private IReadOnlyList<string> pendingNewTaskComments = [];
 
     public MainWindow()
     {
@@ -29,6 +30,7 @@ public partial class MainWindow : Window
         viewModel = new MainViewModel();
         DataContext = viewModel;
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        DocFontSizeBox.ItemsSource = new double[] { 10, 12, 14, 16, 18, 20, 24, 28, 32 };
         RestoreWindowState();
     }
 
@@ -47,6 +49,20 @@ public partial class MainWindow : Window
                 else
                 {
                     LoadBodyDocument(DetailBodyViewer, viewModel.SelectedTask?.BodyDocument);
+                }
+
+                break;
+            case nameof(MainViewModel.SelectedDocument):
+                LoadBodyDocument(DocumentViewer, viewModel.SelectedDocument?.BodyDocument);
+                break;
+            case nameof(MainViewModel.IsDocumentEditMode):
+                if (viewModel.IsDocumentEditMode)
+                {
+                    LoadBodyDocument(DocumentEditor, viewModel.EditingDocumentBodyDocument);
+                }
+                else
+                {
+                    LoadBodyDocument(DocumentViewer, viewModel.SelectedDocument?.BodyDocument);
                 }
 
                 break;
@@ -105,6 +121,114 @@ public partial class MainWindow : Window
         }
     }
 
+    private static async Task<FlowDocument> BuildMattyBodyDocument(MattyImportResult result)
+    {
+        var hasImage = result.BodyNodes.Any(node => node.IsImage);
+        if (!hasImage)
+        {
+            return new FlowDocument(new Paragraph(new Run(result.Body)));
+        }
+
+        var urls = result.BodyNodes.Where(node => node.IsImage).Select(node => node.ImageUrl).ToList();
+        var images = await MattyImportWindow.DownloadBodyImagesAsync(urls);
+
+        var paragraph = new Paragraph();
+        foreach (var node in result.BodyNodes)
+        {
+            if (node.IsImage)
+            {
+                if (images.TryGetValue(node.ImageUrl, out var bytes) && TryLoadBitmap(bytes) is { } bitmap)
+                {
+                    var image = new Image
+                    {
+                        Source = bitmap,
+                        Stretch = Stretch.Uniform,
+                        Width = Math.Min(bitmap.PixelWidth, MaxInsertedImageDisplayWidth)
+                    };
+                    paragraph.Inlines.Add(new InlineUIContainer(image));
+                }
+
+                continue;
+            }
+
+            var parts = node.Text.Split('\n');
+            for (var i = 0; i < parts.Length; i++)
+            {
+                if (i > 0)
+                {
+                    paragraph.Inlines.Add(new LineBreak());
+                }
+
+                if (parts[i].Length > 0)
+                {
+                    paragraph.Inlines.Add(new Run(parts[i]));
+                }
+            }
+        }
+
+        var document = new FlowDocument();
+        document.Blocks.Add(paragraph);
+        return document;
+    }
+
+    private static BitmapImage? TryLoadBitmap(byte[] bytes)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async void ImportMatty_Click(object sender, RoutedEventArgs e)
+    {
+        if (!MainViewModel.TryParseMattyTaskId(viewModel.MattyLink, out var taskId))
+        {
+            MessageBox.Show("올바른 메티 테스크 링크가 아닙니다.\n예: https://easymedia.matty.works:8443/Task/Go/71129", "메티 가져오기", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        MattyImportButton.IsEnabled = false;
+        try
+        {
+            var result = await MattyImportWindow.FetchAsync(this, taskId);
+            if (result is null)
+            {
+                return;
+            }
+
+            viewModel.ApplyMattyComments(result.Comments);
+
+            if (result.BodyNodes.Count > 0 || !string.IsNullOrWhiteSpace(result.Body))
+            {
+                viewModel.IsBodyEditMode = true;
+                DetailBodyEditor.Document = await BuildMattyBodyDocument(result);
+                SyncDetailBodyDocument();
+            }
+
+            viewModel.MattyLink = string.Empty;
+            MessageBox.Show(
+                $"본문과 댓글 {result.Comments.Count}개를 가져왔습니다.\n본문을 확인한 뒤 '본문 저장'을 눌러 반영하세요.",
+                "메티 가져오기",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        finally
+        {
+            MattyImportButton.IsEnabled = true;
+        }
+    }
+
     private void InsertDetailBodyImage_Click(object sender, RoutedEventArgs e)
     {
         if (InsertImage(DetailBodyEditor))
@@ -127,6 +251,129 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenAddTask_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewModel.OpenAddTaskCommand.CanExecute(null))
+        {
+            MessageBox.Show("먼저 상단 필터에서 프로젝트를 선택해 주세요.", "테스크 추가", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        viewModel.OpenAddTaskCommand.Execute(null);
+        NewTaskBodyEditor.Document = new FlowDocument();
+        pendingNewTaskComments = [];
+    }
+
+    private void AddTaskOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        viewModel.IsAddTaskOpen = false;
+        e.Handled = true;
+    }
+
+    // ===== 프로젝트 문서 에디터 =====
+
+    private void SaveDocument_Click(object sender, RoutedEventArgs e)
+    {
+        SyncDocumentEditor();
+        if (viewModel.SaveDocumentCommand.CanExecute(null))
+        {
+            viewModel.SaveDocumentCommand.Execute(null);
+        }
+    }
+
+    private void SyncDocumentEditor()
+    {
+        if (!viewModel.IsDocumentEditMode)
+        {
+            return;
+        }
+
+        var range = new TextRange(DocumentEditor.Document.ContentStart, DocumentEditor.Document.ContentEnd);
+        viewModel.EditingDocumentBody = range.Text.TrimEnd('\r', '\n');
+
+        using var stream = new MemoryStream();
+        range.Save(stream, DataFormats.XamlPackage);
+        viewModel.EditingDocumentBodyDocument = stream.ToArray();
+    }
+
+    private void DocBold_Click(object sender, RoutedEventArgs e)
+    {
+        EditingCommands.ToggleBold.Execute(null, DocumentEditor);
+        DocumentEditor.Focus();
+    }
+
+    private void DocUnderline_Click(object sender, RoutedEventArgs e)
+    {
+        EditingCommands.ToggleUnderline.Execute(null, DocumentEditor);
+        DocumentEditor.Focus();
+    }
+
+    private void DocFontSize_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (DocFontSizeBox.SelectedItem is double size && !DocumentEditor.Selection.IsEmpty)
+        {
+            DocumentEditor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty, size);
+        }
+    }
+
+    private void DocColor_Click(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new WinFormsColorDialog { FullOpen = true };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        var brush = new SolidColorBrush(Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B));
+        if (!DocumentEditor.Selection.IsEmpty)
+        {
+            DocumentEditor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, brush);
+        }
+
+        DocumentEditor.Focus();
+    }
+
+    private void DocLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (DocumentEditor.Selection.IsEmpty)
+        {
+            MessageBox.Show("링크로 만들 텍스트를 먼저 선택해 주세요.", "링크", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var url = PromptDialog.Show(this, "링크 주소(URL)를 입력하세요.", "링크 추가");
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        if (!url.Contains("://"))
+        {
+            url = "https://" + url;
+        }
+
+        try
+        {
+            var link = new Hyperlink(DocumentEditor.Selection.Start, DocumentEditor.Selection.End)
+            {
+                NavigateUri = new Uri(url)
+            };
+            link.ToolTip = url;
+        }
+        catch (UriFormatException)
+        {
+            MessageBox.Show("올바른 URL이 아닙니다.", "링크", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        DocumentEditor.Focus();
+    }
+
+    private void DocImage_Click(object sender, RoutedEventArgs e)
+    {
+        InsertImage(DocumentEditor);
+        DocumentEditor.Focus();
+    }
+
     private void SyncNewTaskBodyDocument()
     {
         var range = new TextRange(NewTaskBodyEditor.Document.ContentStart, NewTaskBodyEditor.Document.ContentEnd);
@@ -147,9 +394,55 @@ public partial class MainWindow : Window
             viewModel.AddTaskCommand.Execute(null);
         }
 
-        if (!string.IsNullOrWhiteSpace(titleBeforeAdd) && string.IsNullOrEmpty(viewModel.NewTaskTitle))
+        var created = !string.IsNullOrWhiteSpace(titleBeforeAdd) && string.IsNullOrEmpty(viewModel.NewTaskTitle);
+        if (created)
         {
+            if (pendingNewTaskComments.Count > 0)
+            {
+                viewModel.ApplyMattyComments(pendingNewTaskComments);
+                pendingNewTaskComments = [];
+            }
+
             NewTaskBodyEditor.Document = new FlowDocument();
+        }
+    }
+
+    private async void ImportMattyNewTask_Click(object sender, RoutedEventArgs e)
+    {
+        if (!MainViewModel.TryParseMattyTaskId(viewModel.NewTaskMattyLink, out var taskId))
+        {
+            MessageBox.Show("올바른 메티 테스크 링크가 아닙니다.\n예: https://easymedia.matty.works:8443/Task/Go/71129", "메티 가져오기", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        NewTaskMattyImportButton.IsEnabled = false;
+        try
+        {
+            var result = await MattyImportWindow.FetchAsync(this, taskId);
+            if (result is null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(viewModel.NewTaskTitle) && !string.IsNullOrWhiteSpace(result.Title))
+            {
+                viewModel.NewTaskTitle = result.Title;
+            }
+
+            NewTaskBodyEditor.Document = await BuildMattyBodyDocument(result);
+            SyncNewTaskBodyDocument();
+            pendingNewTaskComments = result.Comments;
+            viewModel.NewTaskMattyLink = string.Empty;
+
+            MessageBox.Show(
+                $"본문과 댓글 {result.Comments.Count}개를 가져왔습니다.\n'테스크 추가'를 누르면 댓글도 함께 등록됩니다.",
+                "메티 가져오기",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        finally
+        {
+            NewTaskMattyImportButton.IsEnabled = true;
         }
     }
 

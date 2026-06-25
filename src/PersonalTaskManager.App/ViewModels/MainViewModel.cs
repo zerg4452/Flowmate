@@ -24,6 +24,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private byte[]? editingTaskBodyDocument;
     private string editingTimelineText = string.Empty;
     private string timeMemo = string.Empty;
+    private string mattyLink = string.Empty;
+    private string newTaskMattyLink = string.Empty;
     private string keyword = string.Empty;
     private int timeMinutes = 30;
     private bool logTimeEntry;
@@ -36,8 +38,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private ProjectStatus? selectedTaskStatus;
     private TrashItemView? selectedTrashItem;
     private TaskTimelineItem? editingTimelineItem;
+    private ProjectDocument? selectedDocument;
+    private string editingDocumentTitle = string.Empty;
+    private string editingDocumentBody = string.Empty;
+    private byte[]? editingDocumentBodyDocument;
     private bool isTaskDetailOpen;
     private bool isBodyEditMode;
+    private bool isAddTaskOpen;
+    private bool isDocumentEditMode;
     private string reminderMessage = string.Empty;
     private DateOnly? reminderAcknowledgedDate;
 
@@ -55,7 +63,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SelectViewCommand = new RelayCommand<string>(view => CurrentView = view ?? "Main");
         AddProjectCommand = new RelayCommand(AddProject);
         ToggleProjectActiveCommand = new RelayCommand(ToggleProjectActive, () => SelectedProject is not null);
-        AddTaskCommand = new RelayCommand(AddTask, () => SelectedProject is not null);
+        AddTaskCommand = new RelayCommand(AddTask, () => SelectedProjectFilter is not null);
+        OpenAddTaskCommand = new RelayCommand(OpenAddTask, () => SelectedProjectFilter is not null);
+        CloseAddTaskCommand = new RelayCommand(() => IsAddTaskOpen = false);
+        AddDocumentCommand = new RelayCommand(AddDocument, () => SelectedProject is not null);
+        StartEditDocumentCommand = new RelayCommand(StartEditDocument, () => SelectedDocument is not null && !IsDocumentEditMode);
+        SaveDocumentCommand = new RelayCommand(SaveDocument, () => SelectedDocument is not null);
+        CancelEditDocumentCommand = new RelayCommand(CancelEditDocument);
+        DeleteDocumentCommand = new RelayCommand(DeleteDocument, () => SelectedDocument is not null);
         OpenTaskDetailCommand = new RelayCommand<WorkTask>(OpenTaskDetail, task => task is not null);
         CloseTaskDetailCommand = new RelayCommand(CloseTaskDetail);
         StartEditBodyCommand = new RelayCommand(StartEditBody, () => SelectedTask is not null && !IsBodyEditMode);
@@ -107,6 +122,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<TaskTimelineItem> SelectedTaskTimeline { get; } = [];
 
+    public ObservableCollection<ProjectStatGroup> ProjectTaskStatistics { get; } = [];
+
+    public ObservableCollection<ProjectDocument> ProjectDocuments { get; } = [];
+
     public IReadOnlyList<string> MenuItems { get; } = ["Main", "Projects", "Statistics", "Options"];
 
     public RelayCommand<string> SelectViewCommand { get; }
@@ -116,6 +135,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand ToggleProjectActiveCommand { get; }
 
     public RelayCommand AddTaskCommand { get; }
+
+    public RelayCommand OpenAddTaskCommand { get; }
+
+    public RelayCommand CloseAddTaskCommand { get; }
+
+    public RelayCommand AddDocumentCommand { get; }
+
+    public RelayCommand StartEditDocumentCommand { get; }
+
+    public RelayCommand SaveDocumentCommand { get; }
+
+    public RelayCommand CancelEditDocumentCommand { get; }
+
+    public RelayCommand DeleteDocumentCommand { get; }
 
     public RelayCommand<WorkTask> OpenTaskDetailCommand { get; }
 
@@ -213,6 +246,58 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set => SetProperty(ref timeMemo, value);
     }
 
+    public string MattyLink
+    {
+        get => mattyLink;
+        set => SetProperty(ref mattyLink, value);
+    }
+
+    public string NewTaskMattyLink
+    {
+        get => newTaskMattyLink;
+        set => SetProperty(ref newTaskMattyLink, value);
+    }
+
+    public static bool TryParseMattyTaskId(string? link, out string taskId)
+    {
+        taskId = string.Empty;
+        if (string.IsNullOrWhiteSpace(link))
+        {
+            return false;
+        }
+
+        var match = System.Text.RegularExpressions.Regex.Match(link, @"/Task/Go/(\d+)");
+        if (!match.Success)
+        {
+            match = System.Text.RegularExpressions.Regex.Match(link, @"(\d{4,})");
+        }
+
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        taskId = match.Groups[1].Value;
+        return true;
+    }
+
+    public void ApplyMattyComments(IReadOnlyList<string> comments)
+    {
+        var project = FindProjectForSelectedTask();
+        if (project is null || SelectedTask is null)
+        {
+            return;
+        }
+
+        foreach (var comment in comments.Where(comment => !string.IsNullOrWhiteSpace(comment)))
+        {
+            TaskManagerDomain.AddComment(SelectedTask, comment.Trim(), DateTime.Now);
+        }
+
+        store.UpsertProject(project);
+        RefreshAllViews();
+    }
+
     public bool LogTimeEntry
     {
         get => logTimeEntry;
@@ -264,6 +349,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (SetProperty(ref selectedProjectFilter, value))
             {
                 RefreshBoardColumns();
+                AddTaskCommand.RaiseCanExecuteChanged();
+                OpenAddTaskCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -276,6 +363,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             if (SetProperty(ref selectedProject, value))
             {
                 RefreshSelectedProjectStatuses();
+                RefreshProjectDocuments();
                 RaiseCommandStates();
             }
         }
@@ -350,6 +438,62 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 StartEditBodyCommand.RaiseCanExecuteChanged();
             }
         }
+    }
+
+    public bool IsAddTaskOpen
+    {
+        get => isAddTaskOpen;
+        set => SetProperty(ref isAddTaskOpen, value);
+    }
+
+    public bool IsDocumentEditMode
+    {
+        get => isDocumentEditMode;
+        set
+        {
+            if (SetProperty(ref isDocumentEditMode, value))
+            {
+                StartEditDocumentCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public ProjectDocument? SelectedDocument
+    {
+        get => selectedDocument;
+        set
+        {
+            if (SetProperty(ref selectedDocument, value))
+            {
+                IsDocumentEditMode = false;
+                editingDocumentTitle = value?.Title ?? string.Empty;
+                editingDocumentBody = value?.Body ?? string.Empty;
+                editingDocumentBodyDocument = value?.BodyDocument;
+                OnPropertyChanged(nameof(EditingDocumentTitle));
+                OnPropertyChanged(nameof(EditingDocumentBody));
+                StartEditDocumentCommand.RaiseCanExecuteChanged();
+                SaveDocumentCommand.RaiseCanExecuteChanged();
+                DeleteDocumentCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string EditingDocumentTitle
+    {
+        get => editingDocumentTitle;
+        set => SetProperty(ref editingDocumentTitle, value);
+    }
+
+    public string EditingDocumentBody
+    {
+        get => editingDocumentBody;
+        set => SetProperty(ref editingDocumentBody, value);
+    }
+
+    public byte[]? EditingDocumentBodyDocument
+    {
+        get => editingDocumentBodyDocument;
+        set => SetProperty(ref editingDocumentBodyDocument, value);
     }
 
     public double WindowWidth
@@ -477,7 +621,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set => SetProperty(ref reminderMessage, value);
     }
 
-    public string TotalProjectMinutesText => FormatMinutes(Projects.Sum(StatisticsService.GetProjectTotalMinutes));
+    public string TotalProjectMinutesText => FormatMinutes(GetTodayMinutes());
+
+    private int GetTodayMinutes()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return Projects
+            .Where(project => !project.IsDeleted)
+            .SelectMany(project => project.Tasks)
+            .Where(task => !task.IsDeleted)
+            .SelectMany(task => task.TimeEntries)
+            .Where(entry => !entry.IsDeleted && entry.WorkDate == today)
+            .Sum(entry => entry.Minutes);
+    }
 
     public void Dispose()
     {
@@ -529,22 +685,148 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RefreshAllViews();
     }
 
+    private void OpenAddTask()
+    {
+        if (SelectedProjectFilter is null)
+        {
+            MessageBox.Show("먼저 상단 필터에서 프로젝트를 선택해 주세요.", "테스크 추가", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        NewTaskTitle = string.Empty;
+        NewTaskBody = string.Empty;
+        NewTaskBodyDocument = null;
+        NewTaskMattyLink = string.Empty;
+        IsAddTaskOpen = true;
+    }
+
     private void AddTask()
     {
-        if (SelectedProject is null || string.IsNullOrWhiteSpace(NewTaskTitle))
+        var project = SelectedProjectFilter;
+        if (project is null || string.IsNullOrWhiteSpace(NewTaskTitle))
         {
             return;
         }
 
-        var task = TaskManagerDomain.CreateTask(SelectedProject, NewTaskTitle);
+        if (string.IsNullOrWhiteSpace(NewTaskBody))
+        {
+            MessageBox.Show("테스크 내용을 입력해 주세요. 내용이 비어 있으면 등록할 수 없습니다.", "테스크 등록", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var task = TaskManagerDomain.CreateTask(project, NewTaskTitle);
         task.Body = NewTaskBody;
         task.BodyDocument = NewTaskBodyDocument;
-        store.UpsertProject(SelectedProject);
+        store.UpsertProject(project);
         NewTaskTitle = string.Empty;
         NewTaskBody = string.Empty;
         NewTaskBodyDocument = null;
         SelectedTask = task;
+        IsAddTaskOpen = false;
         RefreshAllViews();
+    }
+
+    private void RefreshProjectDocuments()
+    {
+        ProjectDocuments.Clear();
+        if (SelectedProject is null)
+        {
+            return;
+        }
+
+        foreach (var document in SelectedProject.Documents
+                     .Where(document => !document.IsDeleted)
+                     .OrderByDescending(document => document.CreatedAt))
+        {
+            ProjectDocuments.Add(document);
+        }
+    }
+
+    private void AddDocument()
+    {
+        if (SelectedProject is null)
+        {
+            return;
+        }
+
+        var document = new ProjectDocument
+        {
+            ProjectId = SelectedProject.Id,
+            Title = "새 문서",
+            CreatedAt = DateTime.Now
+        };
+        SelectedProject.Documents.Add(document);
+        store.UpsertProject(SelectedProject);
+        RefreshProjectDocuments();
+        SelectedDocument = document;
+        StartEditDocument();
+    }
+
+    private void StartEditDocument()
+    {
+        if (SelectedDocument is null)
+        {
+            return;
+        }
+
+        EditingDocumentTitle = SelectedDocument.Title;
+        EditingDocumentBody = SelectedDocument.Body;
+        EditingDocumentBodyDocument = SelectedDocument.BodyDocument;
+        IsDocumentEditMode = true;
+    }
+
+    private void CancelEditDocument()
+    {
+        if (SelectedDocument is not null)
+        {
+            EditingDocumentTitle = SelectedDocument.Title;
+            EditingDocumentBody = SelectedDocument.Body;
+            EditingDocumentBodyDocument = SelectedDocument.BodyDocument;
+        }
+
+        IsDocumentEditMode = false;
+    }
+
+    private void SaveDocument()
+    {
+        if (SelectedProject is null || SelectedDocument is null)
+        {
+            return;
+        }
+
+        SelectedDocument.Title = string.IsNullOrWhiteSpace(EditingDocumentTitle) ? "제목 없음" : EditingDocumentTitle.Trim();
+        SelectedDocument.Body = EditingDocumentBody;
+        SelectedDocument.BodyDocument = EditingDocumentBodyDocument;
+        SelectedDocument.UpdatedAt = DateTime.Now;
+        store.UpsertProject(SelectedProject);
+        IsDocumentEditMode = false;
+        var saved = SelectedDocument;
+        RefreshProjectDocuments();
+        SelectedDocument = ProjectDocuments.FirstOrDefault(document => document.Id == saved.Id);
+    }
+
+    private void DeleteDocument()
+    {
+        if (SelectedProject is null || SelectedDocument is null)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            $"'{SelectedDocument.Title}' 문서를 삭제하시겠습니까?",
+            "문서 삭제",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        TaskManagerDomain.SoftDelete(SelectedDocument, DeleteOrigin.Direct);
+        store.UpsertProject(SelectedProject);
+        SelectedDocument = null;
+        IsDocumentEditMode = false;
+        RefreshProjectDocuments();
     }
 
     private void OpenTaskDetail(WorkTask? task)
@@ -859,7 +1141,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        RestoreProjectTree(SelectedTrashItem.Project);
+        if (SelectedTrashItem.Document is { } document)
+        {
+            document.IsDeleted = false;
+            document.DeletedAt = null;
+            document.DeleteOrigin = null;
+        }
+        else if (SelectedTrashItem.Comment is { } comment)
+        {
+            comment.IsDeleted = false;
+            comment.DeletedAt = null;
+            comment.DeleteOrigin = null;
+        }
+        else
+        {
+            RestoreProjectTree(SelectedTrashItem.Project);
+        }
+
         store.UpsertProject(SelectedTrashItem.Project);
         RefreshAllViews();
     }
@@ -895,6 +1193,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             var owner = SelectedTrashItem.Project.Tasks.FirstOrDefault(task => task.Id == SelectedTrashItem.Comment.TaskId);
             owner?.Comments.Remove(SelectedTrashItem.Comment);
+            store.UpsertProject(SelectedTrashItem.Project);
+        }
+        else if (SelectedTrashItem.Document is not null)
+        {
+            SelectedTrashItem.Project.Documents.Remove(SelectedTrashItem.Document);
             store.UpsertProject(SelectedTrashItem.Project);
         }
         else
@@ -1017,6 +1320,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         WeeklyStatistics.Clear();
         MonthlyStatistics.Clear();
         YearlyStatistics.Clear();
+        RefreshProjectTaskStatistics();
 
         foreach (var summary in MergeStatistics(StatisticsPeriod.Day))
         {
@@ -1036,6 +1340,42 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         foreach (var summary in MergeStatistics(StatisticsPeriod.Year))
         {
             YearlyStatistics.Add(summary);
+        }
+    }
+
+    private void RefreshProjectTaskStatistics()
+    {
+        ProjectTaskStatistics.Clear();
+        foreach (var project in Projects
+                     .Where(project => project.IsActive && !project.IsDeleted)
+                     .OrderBy(project => project.Name))
+        {
+            var rows = project.Tasks
+                .Where(task => !task.IsDeleted)
+                .Select(task => new
+                {
+                    task.Title,
+                    Minutes = TaskManagerDomain.GetTaskTotalMinutes(task)
+                })
+                .OrderByDescending(row => row.Minutes)
+                .Select(row => new TaskStatRow
+                {
+                    TaskTitle = row.Title,
+                    MinutesText = FormatMinutes(row.Minutes)
+                })
+                .ToList();
+
+            if (rows.Count == 0)
+            {
+                continue;
+            }
+
+            ProjectTaskStatistics.Add(new ProjectStatGroup
+            {
+                ProjectName = project.Name,
+                TotalText = FormatMinutes(StatisticsService.GetProjectTotalMinutes(project)),
+                Tasks = rows
+            });
         }
     }
 
@@ -1075,6 +1415,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 {
                     TrashItems.Add(new TrashItemView { Kind = "댓글", Name = comment.Content, DeletedAt = comment.DeletedAt, Project = project, Comment = comment });
                 }
+            }
+
+            foreach (var document in project.Documents.Where(document => document.IsDeleted))
+            {
+                TrashItems.Add(new TrashItemView { Kind = "문서", Name = document.Title, DeletedAt = document.DeletedAt, Project = project, Document = document });
             }
         }
     }
@@ -1135,6 +1480,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 entry.DeleteOrigin = null;
             }
         }
+
+        foreach (var document in project.Documents.Where(document => document.DeleteOrigin == DeleteOrigin.Cascade))
+        {
+            document.IsDeleted = false;
+            document.DeletedAt = null;
+            document.DeleteOrigin = null;
+        }
     }
 
     private void CheckReminder()
@@ -1168,6 +1520,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         ToggleProjectActiveCommand.RaiseCanExecuteChanged();
         AddTaskCommand.RaiseCanExecuteChanged();
+        OpenAddTaskCommand.RaiseCanExecuteChanged();
+        AddDocumentCommand.RaiseCanExecuteChanged();
+        StartEditDocumentCommand.RaiseCanExecuteChanged();
+        SaveDocumentCommand.RaiseCanExecuteChanged();
+        DeleteDocumentCommand.RaiseCanExecuteChanged();
         OpenTaskDetailCommand.RaiseCanExecuteChanged();
         CloseTaskDetailCommand.RaiseCanExecuteChanged();
         StartEditBodyCommand.RaiseCanExecuteChanged();

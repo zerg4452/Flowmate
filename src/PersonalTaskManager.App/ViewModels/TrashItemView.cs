@@ -17,4 +17,6 @@ public sealed class TrashItemView
     public ProjectStatus? Status { get; init; }
 
     public TaskComment? Comment { get; init; }
+
+    public ProjectDocument? Document { get; init; }
 }

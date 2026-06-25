@@ -4,7 +4,7 @@ namespace PersonalTaskManager.App.Infrastructure;
 
 public static class AppDataPaths
 {
-    public static string DatabasePath
+    public static string BaseDirectory
     {
         get
         {
@@ -12,7 +12,19 @@ public static class AppDataPaths
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "PersonalTaskManager");
             Directory.CreateDirectory(directory);
-            return Path.Combine(directory, "personal-task-manager.db");
+            return directory;
+        }
+    }
+
+    public static string DatabasePath => Path.Combine(BaseDirectory, "personal-task-manager.db");
+
+    public static string WebView2Folder
+    {
+        get
+        {
+            var directory = Path.Combine(BaseDirectory, "WebView2");
+            Directory.CreateDirectory(directory);
+            return directory;
         }
     }
 }

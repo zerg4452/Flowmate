@@ -1,12 +1,16 @@
 namespace PersonalTaskManager.Core.Models;
 
-public sealed class Project : ISoftDeletable
+public sealed class ProjectDocument : ISoftDeletable
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    public string Name { get; set; } = string.Empty;
+    public Guid ProjectId { get; set; }
 
-    public bool IsActive { get; set; } = true;
+    public string Title { get; set; } = string.Empty;
+
+    public string Body { get; set; } = string.Empty;
+
+    public byte[]? BodyDocument { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
@@ -17,10 +21,4 @@ public sealed class Project : ISoftDeletable
     public DateTime? DeletedAt { get; set; }
 
     public DeleteOrigin? DeleteOrigin { get; set; }
-
-    public List<ProjectStatus> Statuses { get; set; } = [];
-
-    public List<WorkTask> Tasks { get; set; } = [];
-
-    public List<ProjectDocument> Documents { get; set; } = [];
 }

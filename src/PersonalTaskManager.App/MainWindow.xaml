@@ -89,7 +89,7 @@
                         CornerRadius="10"
                         Padding="14,12">
                     <StackPanel>
-                        <TextBlock Text="총 투자시간" Foreground="#9FB6E6" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock Text="오늘 투자시간" Foreground="#9FB6E6" FontSize="11" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding TotalProjectMinutesText}"
                                    Foreground="White"
                                    FontSize="17"
@@ -163,7 +163,13 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,12,0">
                             <TextBlock Text="프로젝트" Style="{StaticResource FieldLabel}" />
-                            <ComboBox ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProjectFilter}" DisplayMemberPath="Name" />
+                            <ComboBox ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProjectFilter}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="0,0,12,0">
                             <TextBlock Text="시작일" Style="{StaticResource FieldLabel}" />
@@ -204,8 +210,20 @@
                                         <Border DockPanel.Dock="Top" Background="{Binding HeaderColor}" CornerRadius="12,12,0,0" Padding="0,13">
                                             <TextBlock Text="{Binding StatusName}" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" Foreground="#1E293B" />
                                         </Border>
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="640">
-                                          <Grid MinHeight="80">
+                                        <Button DockPanel.Dock="Bottom" Content="+ 테스크 추가" Margin="8" Click="OpenAddTask_Click">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding StatusName}" Value="To do">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" VerticalAlignment="Top">
+                                          <Grid MinHeight="80" VerticalAlignment="Top">
                                             <TextBlock Text="작업 없음"
                                                        Foreground="#94A3B8"
                                                        FontSize="12"
@@ -326,12 +344,23 @@
                                     <TextBlock Text="{Binding SelectedTaskTotalText}" Foreground="{StaticResource AccentDarkBrush}" FontWeight="SemiBold" />
                                 </Border>
 
+                                <TextBlock Text="메티 링크 가져오기" Style="{StaticResource FieldLabel}" />
+                                <DockPanel Margin="0,0,0,16">
+                                    <Button x:Name="MattyImportButton" DockPanel.Dock="Right" Content="가져오기" Width="100" Height="38" Margin="8,4,0,4" Style="{StaticResource PrimaryButton}" Click="ImportMatty_Click" />
+                                    <TextBox Text="{Binding MattyLink, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
+
                                 <TextBlock Text="상태" Style="{StaticResource FieldLabel}" />
                                 <DockPanel Margin="0,0,0,4">
                                     <Button DockPanel.Dock="Right" Content="상태 변경" Width="110" Height="38" Margin="8,4,0,4" Style="{StaticResource PrimaryButton}" Command="{Binding ChangeTaskStatusCommand}" />
                                     <ComboBox ItemsSource="{Binding SelectedProjectStatuses}"
-                                              SelectedItem="{Binding SelectedTaskStatus, Mode=TwoWay}"
-                                              DisplayMemberPath="Name" />
+                                              SelectedItem="{Binding SelectedTaskStatus, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
                                 </DockPanel>
 
                                 <DockPanel Margin="2,12,0,2">
@@ -474,6 +503,57 @@
                         </ScrollViewer>
                     </Border>
                 </Grid>
+
+                <!-- ====== Add Task Popup (To do) ====== -->
+                <Grid Grid.RowSpan="2" Panel.ZIndex="50">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAddTaskOpen}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Border Background="#5C0F172A" MouseLeftButtonDown="AddTaskOverlay_MouseLeftButtonDown" />
+                    <Border Width="680"
+                            MaxHeight="700"
+                            Background="White"
+                            CornerRadius="14"
+                            Padding="24"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Effect="{StaticResource PopupShadow}"
+                            MouseLeftButtonDown="PopupContent_MouseLeftButtonDown">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,12">
+                                    <Button DockPanel.Dock="Right" Content="닫기" Width="76" Command="{Binding CloseAddTaskCommand}" />
+                                    <TextBlock Text="테스크 추가 (To do)" FontSize="20" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                                </DockPanel>
+
+                                <TextBlock Text="메티 링크 가져오기" Style="{StaticResource FieldLabel}" />
+                                <DockPanel Margin="0,0,0,12">
+                                    <Button x:Name="NewTaskMattyImportButton" DockPanel.Dock="Right" Content="가져오기" Width="100" Height="38" Margin="8,4,0,4" Style="{StaticResource PrimaryButton}" Click="ImportMattyNewTask_Click" />
+                                    <TextBox Text="{Binding NewTaskMattyLink, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
+
+                                <TextBlock Text="테스크명" Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding NewTaskTitle, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Text="내용" Style="{StaticResource FieldLabel}" Margin="2,8,0,2" />
+                                <Button Content="이미지 삽입" Width="100" HorizontalAlignment="Left" Margin="0,0,0,6" Click="InsertNewTaskBodyImage_Click" />
+                                <RichTextBox x:Name="NewTaskBodyEditor" MinHeight="180" VerticalScrollBarVisibility="Auto" TextChanged="NewTaskBodyEditor_TextChanged" />
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                    <Button Content="추가" Width="100" Style="{StaticResource PrimaryButton}" Click="AddTask_Click" />
+                                    <Button Content="취소" Width="80" Margin="8,4,0,4" Command="{Binding CloseAddTaskCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- ============ PROJECTS VIEW ============ -->
@@ -501,36 +581,77 @@
                     </GroupBox>
                 </StackPanel>
 
-                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <GroupBox Header="프로젝트 작업">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="사용 여부 전환" Width="140" Command="{Binding ToggleProjectActiveCommand}" />
-                                <Button Content="프로젝트 삭제" Width="124" Margin="10,4,0,4" Command="{Binding DeleteProjectCommand}" />
-                            </StackPanel>
-                        </GroupBox>
+                <GroupBox Grid.Column="1" Header="프로젝트 문서">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="180" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-                        <GroupBox Header="상태 관리">
-                            <DataGrid ItemsSource="{Binding SelectedProjectStatuses}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" MinHeight="160">
+                        <!-- 상단 우측 등록/삭제 -->
+                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="문서 등록" Width="100" Style="{StaticResource PrimaryButton}" Command="{Binding AddDocumentCommand}" />
+                                <Button Content="삭제" Width="70" Margin="8,4,0,4" Command="{Binding DeleteDocumentCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="문서 목록" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <!-- 문서 목록 -->
+                        <Border Grid.Row="1" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,12">
+                            <DataGrid ItemsSource="{Binding ProjectDocuments}" SelectedItem="{Binding SelectedDocument}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" HeadersVisibility="Column" BorderThickness="0">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="상태명" Binding="{Binding Name}" Width="*" />
-                                    <DataGridTextColumn Header="순서" Binding="{Binding SortOrder}" Width="70" />
+                                    <DataGridTextColumn Header="제목" Binding="{Binding Title}" Width="*" />
+                                    <DataGridTextColumn Header="수정일" Binding="{Binding UpdatedAt, StringFormat=yyyy-MM-dd HH:mm}" Width="150" />
                                 </DataGrid.Columns>
                             </DataGrid>
-                        </GroupBox>
+                        </Border>
 
-                        <GroupBox Header="테스크 추가">
-                            <StackPanel>
-                                <TextBlock Text="테스크명" Style="{StaticResource FieldLabel}" />
-                                <TextBox Text="{Binding NewTaskTitle, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Text="내용" Style="{StaticResource FieldLabel}" />
-                                <Button Content="이미지 삽입" Width="100" HorizontalAlignment="Left" Margin="0,0,0,6" Click="InsertNewTaskBodyImage_Click" />
-                                <RichTextBox x:Name="NewTaskBodyEditor" MinHeight="100" VerticalScrollBarVisibility="Auto" TextChanged="NewTaskBodyEditor_TextChanged" />
-                                <Button Content="테스크 추가" Width="110" Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="AddTask_Click" />
-                            </StackPanel>
-                        </GroupBox>
-                    </StackPanel>
-                </ScrollViewer>
+                        <!-- 문서 상세/편집 -->
+                        <Border Grid.Row="2" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                            <DockPanel>
+                                <!-- 제목 줄 + 수정/저장/취소 -->
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="수정" Width="70"
+                                                Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVisInverse}}"
+                                                Command="{Binding StartEditDocumentCommand}" />
+                                        <Button Content="저장" Width="70" Style="{StaticResource PrimaryButton}"
+                                                Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVis}}"
+                                                Click="SaveDocument_Click" />
+                                        <Button Content="취소" Width="70" Margin="8,4,0,4"
+                                                Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding CancelEditDocumentCommand}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding EditingDocumentTitle}" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"
+                                               Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVisInverse}}" />
+                                    <TextBox Text="{Binding EditingDocumentTitle, UpdateSourceTrigger=PropertyChanged}" FontSize="16"
+                                             Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVis}}" />
+                                </DockPanel>
+
+                                <!-- 편집 툴바 (수정 모드만) -->
+                                <Border DockPanel.Dock="Top" Background="#F1F5F9" CornerRadius="8" Padding="6" Margin="0,0,0,8"
+                                        Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="B" Width="34" FontWeight="Bold" ToolTip="굵게" Click="DocBold_Click" />
+                                        <Button Content="U" Width="34" Margin="4,4,0,4" ToolTip="밑줄" Click="DocUnderline_Click" />
+                                        <ComboBox x:Name="DocFontSizeBox" Width="70" Margin="8,4,0,4" ToolTip="글자 크기" SelectionChanged="DocFontSize_Changed" IsEditable="False" />
+                                        <Button Content="글자색" Width="64" Margin="8,4,0,4" Click="DocColor_Click" />
+                                        <Button Content="링크" Width="56" Margin="8,4,0,4" Click="DocLink_Click" />
+                                        <Button Content="이미지" Width="64" Margin="8,4,0,4" Click="DocImage_Click" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 본문: 열람(읽기전용) / 수정 -->
+                                <RichTextBox x:Name="DocumentViewer" IsReadOnly="True" BorderThickness="0" VerticalScrollBarVisibility="Auto"
+                                             Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVisInverse}}" />
+                                <RichTextBox x:Name="DocumentEditor" VerticalScrollBarVisibility="Auto"
+                                             Visibility="{Binding IsDocumentEditMode, Converter={StaticResource BoolToVis}}" />
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </GroupBox>
             </Grid>
 
             <!-- ============ STATISTICS VIEW ============ -->
@@ -540,48 +661,103 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Text="통계" FontSize="24" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,16" />
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition />
-                        <ColumnDefinition />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-                    <GroupBox Header="일별 투자시간" Grid.Row="0" Grid.Column="0" Margin="0,0,8,8">
-                        <DataGrid ItemsSource="{Binding DailyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="일자" Binding="{Binding Period}" Width="*" />
-                                <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </GroupBox>
-                    <GroupBox Header="주별 투자시간" Grid.Row="0" Grid.Column="1" Margin="8,0,0,8">
-                        <DataGrid ItemsSource="{Binding WeeklyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="주" Binding="{Binding Period}" Width="*" />
-                                <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </GroupBox>
-                    <GroupBox Header="월별 투자시간" Grid.Row="1" Grid.Column="0" Margin="0,8,8,0">
-                        <DataGrid ItemsSource="{Binding MonthlyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="월" Binding="{Binding Period}" Width="*" />
-                                <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </GroupBox>
-                    <GroupBox Header="연별 투자시간" Grid.Row="1" Grid.Column="1" Margin="8,8,0,0">
-                        <DataGrid ItemsSource="{Binding YearlyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="연도" Binding="{Binding Period}" Width="*" />
-                                <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </GroupBox>
-                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <GroupBox Header="프로젝트 · 테스크별 누적시간">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding ProjectTaskStatistics}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#F8FAFC"
+                                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Margin="0,0,0,12"
+                                                    Padding="14,10">
+                                                <StackPanel>
+                                                    <DockPanel Margin="0,0,0,6">
+                                                        <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoftBrush}" CornerRadius="6" Padding="10,3">
+                                                            <TextBlock Text="{Binding TotalText}" Foreground="{StaticResource AccentDarkBrush}" FontWeight="SemiBold" FontSize="13" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding ProjectName}" FontWeight="Bold" FontSize="15" Foreground="#0F172A" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                    <ItemsControl ItemsSource="{Binding Tasks}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <DockPanel Margin="6,3">
+                                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding MinutesText}" Foreground="{StaticResource MutedTextBrush}" FontSize="13" VerticalAlignment="Center" />
+                                                                    <TextBlock Text="{Binding TaskTitle}" Foreground="#334155" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                                                </DockPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="집계할 작업시간이 없습니다."
+                                           Foreground="#94A3B8"
+                                           FontSize="13"
+                                           Margin="4,4,0,8">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ProjectTaskStatistics.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <Grid Height="480">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition />
+                                <RowDefinition />
+                            </Grid.RowDefinitions>
+                            <GroupBox Header="일별 투자시간" Grid.Row="0" Grid.Column="0" Margin="0,0,8,8">
+                                <DataGrid ItemsSource="{Binding DailyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="일자" Binding="{Binding Period}" Width="*" />
+                                        <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                            <GroupBox Header="주별 투자시간" Grid.Row="0" Grid.Column="1" Margin="8,0,0,8">
+                                <DataGrid ItemsSource="{Binding WeeklyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="주" Binding="{Binding Period}" Width="*" />
+                                        <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                            <GroupBox Header="월별 투자시간" Grid.Row="1" Grid.Column="0" Margin="0,8,8,0">
+                                <DataGrid ItemsSource="{Binding MonthlyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="월" Binding="{Binding Period}" Width="*" />
+                                        <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                            <GroupBox Header="연별 투자시간" Grid.Row="1" Grid.Column="1" Margin="8,8,0,0">
+                                <DataGrid ItemsSource="{Binding YearlyStatistics}" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="연도" Binding="{Binding Period}" Width="*" />
+                                        <DataGridTextColumn Header="분" Binding="{Binding Minutes}" Width="100" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <!-- ============ OPTIONS VIEW ============ -->
