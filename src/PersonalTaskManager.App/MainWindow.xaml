@@ -337,8 +337,8 @@
                         </Border.Style>
                         <Grid>
                           <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="780" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="260" />
                           </Grid.ColumnDefinitions>
                         <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" MaxHeight="732">
                             <StackPanel>
@@ -509,14 +509,15 @@
                         </ScrollViewer>
 
                         <Border Grid.Column="1"
-                                Width="260"
                                 Margin="20,0,0,0"
+                                MaxHeight="732"
                                 Background="#F8FAFC"
                                 BorderBrush="{StaticResource CardBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="14"
                                 Visibility="{Binding IsAiWorkAvailable, Converter={StaticResource BoolToVis}}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
                                 <TextBlock Text="AI 작업" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="0,0,0,10" />
 
@@ -526,24 +527,21 @@
                                         Visibility="{Binding IsAiPanelActivated, Converter={StaticResource BoolToVisInverse}}" />
 
                                 <StackPanel Visibility="{Binding IsAiPanelActivated, Converter={StaticResource BoolToVis}}">
-                                    <Button Content="터미널 창 활성화"
-                                            Margin="0,0,0,12"
-                                            Command="{Binding OpenTerminalCommand}" />
-
-                                    <TextBlock Text="명령 마크다운" Style="{StaticResource FieldLabel}" />
-                                    <TextBox Text="{Binding AiCommandMarkdown, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBlock Text="프롬프트" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding AiPrompt, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource MultiLineInput}"
                                              AcceptsReturn="True"
                                              TextWrapping="Wrap"
                                              MinHeight="220"
                                              VerticalScrollBarVisibility="Auto" />
 
-                                    <Button Content="마크다운 저장"
+                                    <Button Content="AI 실행"
                                             Margin="0,8,0,0"
                                             Style="{StaticResource PrimaryButton}"
-                                            Command="{Binding SaveAiCommandMarkdownCommand}" />
+                                            Command="{Binding RunAiPromptCommand}" />
                                 </StackPanel>
                             </StackPanel>
+                            </ScrollViewer>
                         </Border>
                         </Grid>
                     </Border>

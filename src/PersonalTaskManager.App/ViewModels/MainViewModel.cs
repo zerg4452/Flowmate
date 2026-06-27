@@ -53,7 +53,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string projectWorkspacePath = string.Empty;
     private AiCliTool? projectAiTool;
     private bool isAiPanelActivated;
-    private string aiCommandMarkdown = string.Empty;
+    private string aiPrompt = string.Empty;
 
     public MainViewModel()
         : this(new LiteDbTaskStore(AppDataPaths.DatabasePath))
@@ -97,8 +97,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         PermanentlyDeleteTrashItemCommand = new RelayCommand(PermanentlyDeleteTrashItem, () => SelectedTrashItem is not null);
         SaveProjectAiSettingsCommand = new RelayCommand(SaveProjectAiSettings, () => SelectedProject is not null);
         ActivateAiPanelCommand = new RelayCommand(() => IsAiPanelActivated = true, () => IsAiWorkAvailable && !IsAiPanelActivated);
-        OpenTerminalCommand = new RelayCommand(OpenTerminal, () => IsAiWorkAvailable);
-        SaveAiCommandMarkdownCommand = new RelayCommand(SaveAiCommandMarkdown, () => IsAiWorkAvailable && !string.IsNullOrWhiteSpace(AiCommandMarkdown));
+        RunAiPromptCommand = new RelayCommand(RunAiPrompt, () => IsAiWorkAvailable && !string.IsNullOrWhiteSpace(AiPrompt));
 
         Load();
         reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -200,9 +199,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public RelayCommand ActivateAiPanelCommand { get; }
 
-    public RelayCommand OpenTerminalCommand { get; }
-
-    public RelayCommand SaveAiCommandMarkdownCommand { get; }
+    public RelayCommand RunAiPromptCommand { get; }
 
     public string CurrentView
     {
@@ -413,14 +410,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string AiCommandMarkdown
+    public string AiPrompt
     {
-        get => aiCommandMarkdown;
+        get => aiPrompt;
         set
         {
-            if (SetProperty(ref aiCommandMarkdown, value))
+            if (SetProperty(ref aiPrompt, value))
             {
-                SaveAiCommandMarkdownCommand.RaiseCanExecuteChanged();
+                RunAiPromptCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -781,35 +778,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RaiseCommandStates();
     }
 
-    private void OpenTerminal()
-    {
-        var project = FindProjectForSelectedTask();
-        if (project is null || string.IsNullOrWhiteSpace(project.WorkspacePath))
-        {
-            return;
-        }
-
-        if (!Directory.Exists(project.WorkspacePath))
-        {
-            MessageBox.Show("워크스페이스 경로를 찾을 수 없습니다.", "터미널 활성화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo("cmd.exe")
-            {
-                WorkingDirectory = project.WorkspacePath,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"터미널을 실행할 수 없습니다.\n{ex.Message}", "터미널 활성화 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private void SaveAiCommandMarkdown()
+    private void RunAiPrompt()
     {
         var project = FindProjectForSelectedTask();
         if (project is null || SelectedTask is null || string.IsNullOrWhiteSpace(project.WorkspacePath))
@@ -819,21 +788,107 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (!Directory.Exists(project.WorkspacePath))
         {
-            MessageBox.Show("워크스페이스 경로를 찾을 수 없습니다.", "마크다운 저장 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("워크스페이스 경로를 찾을 수 없습니다.", "AI 실행 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        var path = Path.Combine(project.WorkspacePath, $"flowmate-task-{SelectedTask.Id}.md");
+        var promptDirectory = Path.Combine(project.WorkspacePath, ".flowmate");
+        var promptPath = Path.Combine(promptDirectory, $"prompt-{SelectedTask.Id}.txt");
 
         try
         {
-            File.WriteAllText(path, AiCommandMarkdown);
-            MessageBox.Show($"마크다운 파일을 저장했습니다.\n{path}", "저장 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            Directory.CreateDirectory(promptDirectory);
+            var workspacePath = Path.GetFullPath(project.WorkspacePath);
+            var executionPrompt = BuildWorkspaceBoundPrompt(AiPrompt, workspacePath);
+            File.WriteAllText(promptPath, executionPrompt);
+            var promptPathLiteral = ToPowerShellSingleQuotedLiteral(promptPath);
+            var workspacePathLiteral = ToPowerShellSingleQuotedLiteral(workspacePath);
+            var cliPath = project.AiCliTool switch
+            {
+                AiCliTool.ClaudeCode => FindExecutableOnPath("claude.cmd", "claude.exe", "claude"),
+                AiCliTool.Codex => FindExecutableOnPath("codex.cmd", "codex.exe", "codex"),
+                _ => null
+            };
+
+            if (string.IsNullOrWhiteSpace(cliPath))
+            {
+                MessageBox.Show("선택한 AI 도구의 실행 파일을 찾을 수 없습니다. PATH 설정을 확인해주세요.", "AI 실행 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var cliPathLiteral = ToPowerShellSingleQuotedLiteral(cliPath);
+            var command = project.AiCliTool switch
+            {
+                AiCliTool.ClaudeCode => $"$prompt = Get-Content -Raw -LiteralPath {promptPathLiteral}; & {cliPathLiteral} -p $prompt",
+                AiCliTool.Codex => $"$OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $OutputEncoding; Get-Content -Raw -Encoding UTF8 -LiteralPath {promptPathLiteral} | & {cliPathLiteral} exec --skip-git-repo-check --cd {workspacePathLiteral} -",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                MessageBox.Show("AI 도구를 선택해주세요.", "AI 실행 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo("powershell.exe")
+            {
+                WorkingDirectory = project.WorkspacePath,
+                Arguments = $"-NoExit -Command \"{command}\"",
+                UseShellExecute = true
+            });
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"마크다운 파일을 저장할 수 없습니다.\n{ex.Message}", "마크다운 저장 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show($"AI를 실행할 수 없습니다.\n{ex.Message}", "AI 실행 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private static string ToPowerShellSingleQuotedLiteral(string value)
+    {
+        return $"'{value.Replace("'", "''")}'";
+    }
+
+    private static string BuildWorkspaceBoundPrompt(string prompt, string workspacePath)
+    {
+        return $"""
+작업 루트는 다음 워크스페이스 폴더입니다.
+{workspacePath}
+
+모든 작업 결과물은 반드시 위 워크스페이스 폴더 안에 생성하거나 수정하세요.
+이미지, 문서, 코드, 로그, 기타 산출물을 만들 때는 워크스페이스 밖의 임시 폴더, 사용자 프로필 폴더, .codex 전역 폴더에 최종 결과물을 남기지 마세요.
+도구가 불가피하게 워크스페이스 밖에 파일을 만들면, 최종 결과물을 워크스페이스 안으로 복사하고 사용자에게 워크스페이스 내부 경로를 알려주세요.
+
+사용자 요청.
+{prompt}
+""";
+    }
+
+    private static string? FindExecutableOnPath(params string[] names)
+    {
+        var pathValue = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathValue))
+        {
+            return null;
+        }
+
+        foreach (var directory in pathValue.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                continue;
+            }
+
+            foreach (var name in names)
+            {
+                var candidate = Path.Combine(directory.Trim(), name);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
     }
 
     private void AddTask()
@@ -981,7 +1036,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         TimeMemo = string.Empty;
         LogTimeEntry = false;
         IsAiPanelActivated = false;
-        AiCommandMarkdown = string.Empty;
+        AiPrompt = string.Empty;
         CancelTimelineItemEdit();
         RefreshSelectedTaskDetails();
         IsTaskDetailOpen = true;
@@ -1680,8 +1735,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SaveProjectAiSettingsCommand.RaiseCanExecuteChanged();
         OnPropertyChanged(nameof(IsAiWorkAvailable));
         ActivateAiPanelCommand.RaiseCanExecuteChanged();
-        OpenTerminalCommand.RaiseCanExecuteChanged();
-        SaveAiCommandMarkdownCommand.RaiseCanExecuteChanged();
+        RunAiPromptCommand.RaiseCanExecuteChanged();
     }
 
     private static string FormatMinutes(int minutes)
